@@ -8,7 +8,6 @@ import base64
 import time
 from typing import Dict, List, Tuple
 import threading
-import uuid
 
 TOKEN = "7458997340:AAHu4PAUsdJzjtMeL2Ba9qxZ4Xw2Q3EO-CA"
 ADMIN_ID = 5895491379
@@ -22,25 +21,25 @@ checking_status = {}
 class BraintreeChecker:
     def __init__(self):
         self.cookies = {
-            '_ga': f'GA1.1.{int(time.time())}.{int(time.time())}',
-            '_fbp': f'fb.1.{int(time.time())}.{str(uuid.uuid4()).replace("-", "")[:16]}',
+            '_ga': 'GA1.1.1722861085.1760331033',
+            '_fbp': 'fb.1.1760331033259.683801318978821414',
             'wasLoggedIn': '1',
-            'device_1629404': str(uuid.uuid4()),
+            'device_1629404': 'ea88c336-80d4-435e-a2f7-50901bd267f6',
             'cookies-consent': 'necessary%3Ayes%2Cfunctional%3Ayes%2Canalytics%3Ayes%2Cperformance%3Ayes%2Cadvertisement%3Ayes%2Cuncategorised%3Ayes',
-            'device_1630303': str(uuid.uuid4()),
-            'device_1632436': str(uuid.uuid4()),
-            '_cfuvid': f'{str(uuid.uuid4())[:8]}-1761062452747-0.0.1.1-604800000',
-            '__cf_bm': f'{str(uuid.uuid4())[:8]}-{int(time.time())}',
+            'device_1630303': 'f5cfa990-7aa1-4612-b0a9-3a68d8cdae0d',
+            'device_1632436': '08a0ce0e-4965-4305-b1e0-8b205f64fdf1',
+            '_cfuvid': '6q484WF_yXn8hMlKWQtF1O.jV75SwhYvvANYmUYx81Q-1761062452747-0.0.1.1-604800000',
+            '__cf_bm': '5jiPIhfrntOCG113R0_kJm2LyNObt5iXmUB7wFDtnME-1761065246-1.0.1.1-DrrGAbjinQPTgKPALNI8TP5Qr5u991KFZ_rcRlP.sRBXNq9cH8UZmgg76G0TrpTH1mLLYbspReZBBYPPoLJfj8uR15ilzVmg3x9TKXIUWRBugXH5JwYJ2nwy_pFjSPx9',
             '_li_ns': '1',
-            'device_1634092': str(uuid.uuid4()),
-            '_gcl_au': f'1.1.{int(time.time())}.{int(time.time())}',
-            'PHPSESSID': f'{str(uuid.uuid4())[:32]}',
-            '_identity': f'%5B1634093%2C%22%22%2C1800%5D',
-            'device_1634093': str(uuid.uuid4()),
-            'cf_clearance': f'{str(uuid.uuid4())[:8]}-{int(time.time())}',
-            'cfz_zaraz-analytics': f'%7B%22_cfa_clientId%22%3A%7B%22v%22%3A%22{str(uuid.uuid4())[:16]}%22%2C%22e%22%3A{int(time.time())+3600000}%7D%2C%22_cfa_sId%22%3A%7B%22v%22%3A%22{str(uuid.uuid4())[:16]}%22%2C%22e%22%3A{int(time.time())}%7D%7D',
-            '_csrf': f'{str(uuid.uuid4())[:64]}',
-            '_ga_5WDMLTHHFH': f'GS2.1.s{int(time.time())}$o7$g1$t{int(time.time())}$j60$l0$h{int(time.time())}',
+            'device_1634092': '2fdb9f3a-0b9e-4051-96d1-bdcc13fe332e',
+            '_gcl_au': '1.1.2109561485.1760331033.626465045.1761065264.1761065342',
+            'PHPSESSID': '533b24553fb631c354a68f091962c3c2',
+            '_identity': '%5B1634093%2C%22%22%2C1800%5D',
+            'device_1634093': 'be5e622b-aefc-4a13-9c78-096cd9b8deb0',
+            'cf_clearance': '5Y4m141j70eppUGrRttW8JOFwdxaP_AMsGcPcbS2pEs-1761065347-1.2.1.1-KTYJuSz0cEJiXjyOwVoXP3bRTpk8wWZ3lE8BgfjM9Ob6xIW07ZglV2RBeKpQgAhrynDwSEI_d9xjqV8VWy.x4mezepNMxyKBVpLEI5XDWcvxrLZ.OWzvi.xZwQOasQQD2C9OyJjwP21vtzYFwQRfjDG0OdwqUtwsWD6esfmsEAAR5W5A3Tpj_su2GuEpsHULviJTNOxHkeUWcyhTUEjwbytoWz5ORgNClK.bw0xN0HI',
+            'cfz_zaraz-analytics': '%7B%22_cfa_clientId%22%3A%7B%22v%22%3A%2222099663457815076%22%2C%22e%22%3A1791867032539%7D%2C%22_cfa_sId%22%3A%7B%22v%22%3A%2269393253534430220%22%2C%22e%22%3A1761067181488%7D%7D',
+            '_csrf': '7ywDRXuJfUVm1iPIvwfuNLSxdIsAduvpBZNxAhzv2XefQUF0M88oaBS7T6fVbYNs1vwk7FIFrrNR1QN2TJeJOQ%3D%3D',
+            '_ga_5WDMLTHHFH': 'GS2.1.s1761065249$o7$g1$t1761065483$j60$l0$h142749829',
         }
         self.auth_fingerprint = None
         
@@ -84,7 +83,7 @@ class BraintreeChecker:
                 'clientSdkMetadata': {
                     'source': 'client',
                     'integration': 'custom',
-                    'sessionId': str(uuid.uuid4()),
+                    'sessionId': '8f55664e-6642-423a-8a18-b5e050ff2b0b',
                 },
                 'query': 'mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) {   tokenizeCreditCard(input: $input) {     token     creditCard {       bin       brandCode       last4       binData {         issuingBank         countryOfIssuance       }     }   } }',
                 'variables': {
@@ -138,7 +137,7 @@ class BraintreeChecker:
                     'mobilePhoneNumber': '13609990000',
                 },
                 'bin': bin_num[:6],
-                'dfReferenceId': str(uuid.uuid4()),
+                'dfReferenceId': '0_040e2574-e8a7-4ce8-a578-da01dc73003d',
                 'clientMetadata': {
                     'requestedThreeDSecureVersion': '2',
                     'sdkVersion': 'web/3.124.0',
@@ -155,7 +154,7 @@ class BraintreeChecker:
                     'source': 'client',
                     'integration': 'custom',
                     'integrationType': 'custom',
-                    'sessionId': str(uuid.uuid4()),
+                    'sessionId': '8f55664e-6642-423a-8a18-b5e050ff2b0b',
                 },
             }
             
