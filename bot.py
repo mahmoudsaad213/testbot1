@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple
 import threading
 import uuid
 
-TOKEN = "7458997340:AAH3zLX3dnMb7dRN0GTR3I9PzVM_TAMisjIg"
+TOKEN = "7458997340:AAHu4PAUsdJzjtMeL2Ba9qxZ4Xw2Q3EO-CA"
 ADMIN_ID = 5895491379
 
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
