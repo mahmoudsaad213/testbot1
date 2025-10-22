@@ -21,26 +21,29 @@ checking_status = {}
 class BraintreeChecker:
     def __init__(self):
         self.cookies = {
-            '_ga': 'GA1.1.1722861085.1760331033',
-            '_fbp': 'fb.1.1760331033259.683801318978821414',
-            'wasLoggedIn': '1',
-            'device_1629404': 'ea88c336-80d4-435e-a2f7-50901bd267f6',
-            'cookies-consent': 'necessary%3Ayes%2Cfunctional%3Ayes%2Canalytics%3Ayes%2Cperformance%3Ayes%2Cadvertisement%3Ayes%2Cuncategorised%3Ayes',
-            'device_1630303': 'f5cfa990-7aa1-4612-b0a9-3a68d8cdae0d',
-            'device_1632436': '08a0ce0e-4965-4305-b1e0-8b205f64fdf1',
-            '_cfuvid': '6q484WF_yXn8hMlKWQtF1O.jV75SwhYvvANYmUYx81Q-1761062452747-0.0.1.1-604800000',
-            '__cf_bm': '5jiPIhfrntOCG113R0_kJm2LyNObt5iXmUB7wFDtnME-1761065246-1.0.1.1-DrrGAbjinQPTgKPALNI8TP5Qr5u991KFZ_rcRlP.sRBXNq9cH8UZmgg76G0TrpTH1mLLYbspReZBBYPPoLJfj8uR15ilzVmg3x9TKXIUWRBugXH5JwYJ2nwy_pFjSPx9',
-            '_li_ns': '1',
-            'device_1634092': '2fdb9f3a-0b9e-4051-96d1-bdcc13fe332e',
-            '_gcl_au': '1.1.2109561485.1760331033.626465045.1761065264.1761065342',
-            'PHPSESSID': '533b24553fb631c354a68f091962c3c2',
-            '_identity': '%5B1634093%2C%22%22%2C1800%5D',
-            'device_1634093': 'be5e622b-aefc-4a13-9c78-096cd9b8deb0',
-            'cf_clearance': '5Y4m141j70eppUGrRttW8JOFwdxaP_AMsGcPcbS2pEs-1761065347-1.2.1.1-KTYJuSz0cEJiXjyOwVoXP3bRTpk8wWZ3lE8BgfjM9Ob6xIW07ZglV2RBeKpQgAhrynDwSEI_d9xjqV8VWy.x4mezepNMxyKBVpLEI5XDWcvxrLZ.OWzvi.xZwQOasQQD2C9OyJjwP21vtzYFwQRfjDG0OdwqUtwsWD6esfmsEAAR5W5A3Tpj_su2GuEpsHULviJTNOxHkeUWcyhTUEjwbytoWz5ORgNClK.bw0xN0HI',
-            'cfz_zaraz-analytics': '%7B%22_cfa_clientId%22%3A%7B%22v%22%3A%2222099663457815076%22%2C%22e%22%3A1791867032539%7D%2C%22_cfa_sId%22%3A%7B%22v%22%3A%2269393253534430220%22%2C%22e%22%3A1761067181488%7D%7D',
-            '_csrf': '7ywDRXuJfUVm1iPIvwfuNLSxdIsAduvpBZNxAhzv2XefQUF0M88oaBS7T6fVbYNs1vwk7FIFrrNR1QN2TJeJOQ%3D%3D',
-            '_ga_5WDMLTHHFH': 'GS2.1.s1761065249$o7$g1$t1761065483$j60$l0$h142749829',
-        }
+    '_ga': 'GA1.1.1722861085.1760331033',
+    '_fbp': 'fb.1.1760331033259.683801318978821414',
+    'wasLoggedIn': '1',
+    'device_1629404': 'ea88c336-80d4-435e-a2f7-50901bd267f6',
+    'cookies-consent': 'necessary%3Ayes%2Cfunctional%3Ayes%2Canalytics%3Ayes%2Cperformance%3Ayes%2Cadvertisement%3Ayes%2Cuncategorised%3Ayes',
+    'device_1630303': 'f5cfa990-7aa1-4612-b0a9-3a68d8cdae0d',
+    'device_1632436': '08a0ce0e-4965-4305-b1e0-8b205f64fdf1',
+    'device_1634092': '2fdb9f3a-0b9e-4051-96d1-bdcc13fe332e',
+    'device_1634093': 'be5e622b-aefc-4a13-9c78-096cd9b8deb0',
+    '__cf_bm': 'upZC12wSOdOU9uLB1LoaORCvt6d.onbnsX10t26BzU8-1761128578-1.0.1.1-FK44dRIEKAU7ibO5qnvR0nWcViLT_8Lz8OTGr.HSZdFuf58JB5YHjm4530aQgIiJ_SqzlnpJpU93vMZugEBPOXMNIfJCa44m7dPi3fVxwr1XoA5NDBlO3CwZR3d.HnqX',
+    '_cfuvid': 'i8L_h5Z.toYAiLKxbK00vKDsUKcnP0HRxcsyjyyAQrs-1761128578484-0.0.1.1-604800000',
+    '_clck': '1nr2lp8%5E2%5Eg0d%5E0%5E2121',
+    '_gcl_au': '1.1.2109561485.1760331033.2092588948.1761128602.1761128618',
+    'PHPSESSID': '186d67e496a3c20d7145d8ac152031d7',
+    '_identity': '%5B1634430%2C%22%22%2C1800%5D',
+    '_li_ns': '1',
+    'device_1634430': 'b5e48940-f59a-4c02-bdf2-c857fd45ac9e',
+    'cf_clearance': 'VuS7gcOLv7fIMSPYX8YTdJuXXxP7Jw1mFfpPRiuEtaI-1761128724-1.2.1.1-UtApxfliRxeG7onENMZzHHOjEWZcBI1aHAnYUEu3T6CFu0TSCOgiXnU.8Vq_20HBPtWND5g9X9c3bLj1CH3BYYiySItY8yvImX8YnIRg81XHPddvDg7RWZ45tHLhhF6lgvXw2vye0Nxam9hBJUxEiVKGffMyvPwRjBeGEKuFc777Od7Cr9AS9s9Wyge8Yq3vrGmFXGAPUysx2m.Kvuf4jA8GuNr3e02WdoVSGCuR3yM',
+    '_csrf': 'RpFlUAxtktGNfDUrZYY4YZYApcPAbyBME2XIAn8wunIspx82Pyv_6N8FakUX4Wcl5HeWko4nEDVFVOVkJwTyRA%3D%3D',
+    '_clsk': '16df689%5E1761128745239%5E8%5E1%5Ev.clarity.ms%2Fcollect',
+    'cfz_zaraz-analytics': '%7B%22_cfa_clientId%22%3A%7B%22v%22%3A%2222099663457815076%22%2C%22e%22%3A1791867032539%7D%2C%22_cfa_sId%22%3A%7B%22v%22%3A%2277596521366987580%22%2C%22e%22%3A1761130546529%7D%7D',
+    '_ga_5WDMLTHHFH': 'GS2.1.s1761128579$o8$g1$t1761128759$j24$l0$h652947412',
+    }
         self.auth_fingerprint = None
         
     def get_auth_keys(self) -> bool:
@@ -83,7 +86,7 @@ class BraintreeChecker:
                 'clientSdkMetadata': {
                     'source': 'client',
                     'integration': 'custom',
-                    'sessionId': '8f55664e-6642-423a-8a18-b5e050ff2b0b',
+                    'sessionId': '5a0e2398-3464-4ca8-8972-3462c4840f27',
                 },
                 'query': 'mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) {   tokenizeCreditCard(input: $input) {     token     creditCard {       bin       brandCode       last4       binData {         issuingBank         countryOfIssuance       }     }   } }',
                 'variables': {
@@ -154,7 +157,7 @@ class BraintreeChecker:
                     'source': 'client',
                     'integration': 'custom',
                     'integrationType': 'custom',
-                    'sessionId': '8f55664e-6642-423a-8a18-b5e050ff2b0b',
+                    'sessionId': '5a0e2398-3464-4ca8-8972-3462c4840f27',
                 },
             }
             
