@@ -21,65 +21,6 @@ USERNAME = "desertessence@desertessence.com"
 PASSWORD = "desertessence@desertessence.com"
 LOGIN_URL = "https://my.knownhost.com/client/login"
 AUTH_COOKIES_FILE = "auth_cookies.json"
-PROXY_FILE = "proxies.txt"
-
-# قائمة البروكسيات
-PROXY_LIST = []
-
-def load_proxies():
-    """تحميل البروكسيات من الملف"""
-    global PROXY_LIST
-    try:
-        if os.path.exists(PROXY_FILE):
-            with open(PROXY_FILE, 'r') as f:
-                proxies = []
-                for line in f:
-                    line = line.strip()
-                    if line and ':' in line:
-                        parts = line.split(':')
-                        if len(parts) == 4:
-                            ip, port, user, password = parts
-                            proxy_url = f"http://{user}:{password}@{ip}:{port}"
-                            proxies.append(proxy_url)
-                PROXY_LIST = proxies
-                print(f"[✓] تم تحميل {len(PROXY_LIST)} بروكسي")
-                return True
-        print("[!] ملف البروكسيات غير موجود")
-        return False
-    except Exception as e:
-        print(f"[!] خطأ في تحميل البروكسيات: {e}")
-        return False
-
-def test_proxy(proxy_url, timeout=10):
-    """اختبار البروكسي"""
-    try:
-        proxies = {
-            'http': proxy_url,
-            'https': proxy_url
-        }
-        response = requests.get('https://api.ipify.org?format=json', proxies=proxies, timeout=timeout)
-        if response.status_code == 200:
-            print(f"[✓] البروكسي يعمل: {response.json().get('ip')}")
-            return True
-    except:
-        pass
-    return False
-
-def get_working_proxy():
-    """الحصول على بروكسي يعمل"""
-    if not PROXY_LIST:
-        return None
-    
-    # اختيار 5 بروكسيات عشوائية للاختبار
-    import random
-    test_proxies = random.sample(PROXY_LIST, min(5, len(PROXY_LIST)))
-    
-    for proxy in test_proxies:
-        if test_proxy(proxy, timeout=5):
-            return proxy
-    
-    print("[!] لم يتم العثور على بروكسي يعمل")
-    return None
 
 # الـ Cookies الثابتة
 BASE_COOKIES = {
@@ -205,18 +146,7 @@ def generate_guid():
     return f"{generate_random_string(8)}-{generate_random_string(4)}-{generate_random_string(4)}-{generate_random_string(4)}-{generate_random_string(12)}"
 
 def create_fresh_session():
-    """إنشاء session جديدة مع بروكسي عشوائي"""
     session = requests.Session()
-    
-    # إضافة بروكسي عشوائي
-    if PROXY_LIST:
-        proxy = random.choice(PROXY_LIST)
-        session.proxies = {
-            'http': proxy,
-            'https': proxy
-        }
-        print(f"[🌐] استخدام بروكسي: {proxy.split('@')[1] if '@' in proxy else proxy[:20]}...")
-    
     session.cookies.update(BASE_COOKIES)
     
     muid = f"{generate_guid()}{generate_random_string(6)}"
@@ -266,70 +196,26 @@ async def check_card(card, bot_app):
     
     card_number, exp_month, exp_year, cvv = parts
     
-    # محاولة مع بروكسي، وإذا فشل جرب بدون بروكسي
-    max_retries = 2
-    for attempt in range(max_retries):
-        try:
-            session, muid, sid, guid, stripe_js_id = create_fresh_session()
-            
-            # اختبار البروكسي أولاً
-            if session.proxies:
-                try:
-                    test_response = session.get('https://api.ipify.org?format=json', timeout=5)
-                    if test_response.status_code != 200:
-                        print(f"[!] البروكسي لا يعمل، محاولة {attempt + 1}/{max_retries}")
-                        session.close()
-                        if attempt < max_retries - 1:
-                            continue
-                        else:
-                            # استخدام بدون بروكسي
-                            session = requests.Session()
-                            session.cookies.update(BASE_COOKIES)
-                            print("[⚠️] الاستمرار بدون بروكسي")
-                except:
-                    print(f"[!] فشل اختبار البروكسي، محاولة {attempt + 1}/{max_retries}")
-                    session.close()
-                    if attempt < max_retries - 1:
-                        continue
-                    else:
-                        session = requests.Session()
-                        session.cookies.update(BASE_COOKIES)
-            
-            csrf_token, setup_secret = get_payment_page(session)
-            
-            # إذا فشل Setup Secret، جرب تحديث الكوكيز
-            if not setup_secret:
-                print("[!] فشل Setup Secret، محاولة تحديث الكوكيز...")
-                if refresh_cookies_if_needed():
-                    session.close()
-                    session, muid, sid, guid, stripe_js_id = create_fresh_session()
-                    csrf_token, setup_secret = get_payment_page(session)
-                
-                if not setup_secret:
-                    stats['errors'] += 1
-                    stats['error_details']['SETUP_ERROR'] = stats['error_details'].get('SETUP_ERROR', 0) + 1
-                    stats['checking'] -= 1
-                    stats['last_response'] = 'Setup Error'
-                    await update_dashboard(bot_app)
-                    session.close()
-                    return card, "ERROR", "فشل Setup"
-            
-            # باقي الكود كما هو...
-            break
-            
-        except Exception as e:
-            print(f"[!] خطأ في المحاولة {attempt + 1}: {str(e)[:50]}")
-            if attempt < max_retries - 1:
-                continue
-            else:
-                stats['errors'] += 1
-                stats['error_details']['CONNECTION_ERROR'] = stats['error_details'].get('CONNECTION_ERROR', 0) + 1
-                stats['checking'] -= 1
-                stats['last_response'] = 'Connection Error'
-                await update_dashboard(bot_app)
-                return card, "ERROR", "Connection Failed"
+    session, muid, sid, guid, stripe_js_id = create_fresh_session()
+    csrf_token, setup_secret = get_payment_page(session)
     
-    # استكمال عملية الفحص
+    # إذا فشل Setup Secret، جرب تحديث الكوكيز
+    if not setup_secret:
+        print("[!] فشل Setup Secret، محاولة تحديث الكوكيز...")
+        if refresh_cookies_if_needed():
+            session.close()
+            session, muid, sid, guid, stripe_js_id = create_fresh_session()
+            csrf_token, setup_secret = get_payment_page(session)
+        
+        if not setup_secret:
+            stats['errors'] += 1
+            stats['error_details']['SETUP_ERROR'] = stats['error_details'].get('SETUP_ERROR', 0) + 1
+            stats['checking'] -= 1
+            stats['last_response'] = 'Setup Error'
+            await update_dashboard(bot_app)
+            session.close()
+            return card, "ERROR", "فشل Setup"
+    
     headers = {
         'accept': 'application/json',
         'content-type': 'application/x-www-form-urlencoded',
@@ -695,20 +581,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update_dashboard(context.application)
 
 def main():
-    # تحميل البروكسيات
-    print("🌐 جاري تحميل البروكسيات...")
-    if load_proxies():
-        print(f"[✓] تم تحميل {len(PROXY_LIST)} بروكسي")
-        # اختبار بروكسي واحد للتأكد
-        print("🔍 اختبار بروكسي عشوائي...")
-        test_proxy_url = get_working_proxy()
-        if test_proxy_url:
-            print("[✓] البروكسيات جاهزة للاستخدام!")
-        else:
-            print("[⚠️] تحذير: لم يتم العثور على بروكسي يعمل، سيتم المحاولة بدون بروكسي")
-    else:
-        print("[⚠️] سيتم العمل بدون بروكسيات")
-    
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
