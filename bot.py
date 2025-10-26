@@ -24,16 +24,17 @@ AUTH_COOKIES_FILE = "auth_cookies.json"
 
 # الـ Cookies الثابتة
 BASE_COOKIES = {
-    '_gcl_au': '1.1.1731755719.1761294273',
-    'PAPVisitorId': '7095f26325c875e9da4fdaa66171apP6',
-    '_fbp': 'fb.1.1761298965302.822697239648290722',
-    'lhc_per': 'vid|8994dfb5d60d3132fabe',
-    '__mmapiwsid': '0199d361-1f43-7b6b-9c97-250e8a6a95db:0664b174ef7b3925be07d4b964be6a38b1029da7',
-    '_gid': 'GA1.2.1609015390.1761435403',
-    '_rdt_uuid': '1761294274156.8dd9903d-c9cf-401b-885d-0dad4931526f',
-    '_uetsid': 'a2028140b1fa11f086cd03ee33166b9d',
-    '_uetvid': 'df284260b0b211f086cb537b4a717cc2',
-    '_ga': 'GA1.2.586933227.1761298965',
+    '_gcl_au': '1.1.706308518.1761481419',
+    '_fbp': 'fb.1.1761481419833.135555912565300990',
+    '_gid': 'GA1.2.1673967538.1761481423',
+    '__mmapiwsid': '019a2079-8de1-737b-aa8d-4933ed7a5644:a5eaa90acab09de640bf7ff708e4cc6f6989722b',
+    'blesta_sid': '16ra83trokms8080bfd2vbhur3',
+    '__stripe_mid': 'fc6955eb-8b99-4790-b131-753af86278f52141bc',
+    '_uetsid': '9c674670b26611f0af82698c8f6cbf35',
+    '_uetvid': '9c675cc0b26611f08d03256ba9e96f04',
+    '_ga': 'GA1.2.717734608.1761481419',
+    '_rdt_uuid': '1761481421517.06bcba0c-acf4-4823-85c2-324c918d2257',
+    '_ga_ME5XD3CP95': 'GS2.1.s1761481419$o1$g1$t1761483089$j56$l0$h0',
 }
 
 HEADERS = {
