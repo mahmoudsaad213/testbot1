@@ -1,8 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-CableMod + PayPal PPCP - Telegram Bot
-بوت تليجرام كامل لفحص البطاقات على موقع CableMod
-"""
 
 import os
 import re
@@ -116,9 +111,10 @@ def find(text: str, pattern: str, flags=re.S) -> Optional[str]:
 def extract_nonces(html: str) -> Dict[str, Optional[str]]:
     nonces = {}
     nonces["update_order_review_nonce"] = (
-        find(html SDF, r'name=["\']update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
-        or find(html, r'update_order_review_nonce["\']\s*:\s*["\']([a-f0-9]+)["\']', re.I)
+        find(html, r'id=["\']wc_update_order_review_nonce["\']\s+name=["\']wc_update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
+        or find(html, r'name=["\']wc_update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
     )
+    
     nonces["process_checkout_nonce"] = (
         find(html, r'id=["\']woocommerce-process-checkout-nonce["\']\s+name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
         or find(html, r'name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
