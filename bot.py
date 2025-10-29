@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-CableMod + PayPal PPCP - Telegram Bot
-بوت تليجرام كامل لفحص البطاقات على موقع CableMod
-مع دعم 30 بروكسي عشوائي داخلي
-"""
-
 import os
 import re
 import json
@@ -684,7 +678,7 @@ async def send_to_channel(bot_app, card, status_type, message):
                 f"`{card}`\n"
                 f"Status: **Approved**\n"
                 f"Card #{card_number}\n"
-                f"Gateway: **CableMod + PayPal**\n"
+                f"Gateway: ** PayPal**\n"
                 f"Mahmoud Saad"
             )
         elif status_type == "3D_SECURE":
@@ -693,7 +687,7 @@ async def send_to_channel(bot_app, card, status_type, message):
                 f"`{card}`\n"
                 f"Status: **{message}**\n"
                 f"Card #{card_number}\n"
-                f"Gateway: **CableMod + PayPal**\n"
+                f"Gateway: ** PayPal**\n"
                 f"Mahmoud Saad"
             )
         else:
@@ -743,7 +737,7 @@ async def update_dashboard(bot_app):
             await bot_app.bot.edit_message_text(
                 chat_id=CHANNEL_ID,
                 message_id=stats['dashboard_message_id'],
-                text="**CABLEMOD + PAYPAL CHECKER - LIVE**",
+                text="**Card Live PAYPAL CHECKER - LIVE**",
                 reply_markup=create_dashboard_keyboard(),
                 parse_mode='Markdown'
             )
@@ -828,7 +822,7 @@ async def process_cards(cards, bot_app):
         "**تم إنهاء العملية بنجاح!**\n\n"
         "تم إرسال جميع الملفات\n"
         "شكراً لاستخدامك البوت!\n\n"
-        "Gateway: CableMod + PayPal\n"
+        "Gateway: Card Live PayPal\n"
         "Mahmoud Saad"
     )
     await bot_app.bot.send_message(
@@ -844,12 +838,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     keyboard = [[InlineKeyboardButton("إرسال ملف البطاقات", callback_data="send_file")]]
     await update.message.reply_text(
-        "**CABLEMOD + PAYPAL CARD CHECKER BOT**\n\n"
+        "** PAYPAL CARD CHECKER BOT**\n\n"
         "أرسل ملف .txt يحتوي على البطاقات\n"
         "الصيغة: `رقم|شهر|سنة|cvv`\n"
         "مثال: `5224231000447722|12|2030|007`\n\n"
         f"القناة: `{CHANNEL_ID}`\n"
-        "Gateway: **CableMod + PayPal PPCP**",
+        "Gateway: **Card Live PayPal **",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -889,7 +883,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
     dashboard_msg = await context.application.bot.send_message(
         chat_id=CHANNEL_ID,
-        text="**CABLEMOD + PAYPAL CHECKER - LIVE**",
+        text="** PAYPAL CHECKER - LIVE**",
         reply_markup=create_dashboard_keyboard(),
         parse_mode='Markdown'
     )
@@ -897,7 +891,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"تم بدء الفحص!\n\n"
         f"إجمالي البطاقات: {len(cards)}\n"
-        f"Gateway: CableMod + PayPal\n"
+        f"Gateway: Card Live PayPal\n"
         f"تابع النتائج في القناة",
         parse_mode='Markdown'
     )
@@ -927,9 +921,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ====== Main ======
 def main():
     print("=" * 60)
-    print("  CableMod + PayPal Telegram Bot")
-    print("  Gateway: CableMod + PayPal PPCP")
-    print("  مع 30 بروكسي عشوائي داخلي")
+    print(" PayPal Telegram Bot")
+    print(" Gateway:PayPal Live")
+    print(" Mahmoud Saad")
     print("=" * 60)
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
