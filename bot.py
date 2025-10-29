@@ -189,7 +189,7 @@ class WooCommercePayPal:
         return h
     
     def step1_get_checkout(self):
-        r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
+        r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=60)
         r.raise_for_status()
         self.nonces = extract_nonces(r.text)
         if not self.nonces.get("update_order_review_nonce"):
@@ -216,7 +216,7 @@ class WooCommercePayPal:
             params={"wc-ajax": "update_order_review"},
             headers=self.headers_ajax(),
             data=urlencode(payload),
-            timeout=30
+            timeout=60
         )
         try:
             return r.json()
@@ -233,7 +233,7 @@ class WooCommercePayPal:
             params={"wc-ajax": "ppc-data-client-id"},
             headers=self.headers_ajax(json_content=True),
             json={"nonce": self.nonces["ppcp_nonce"]},
-            timeout=30
+            timeout=60
         )
         try:
             result = r.json()
@@ -270,7 +270,7 @@ class WooCommercePayPal:
                         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                         'referer': 'https://store.cablemod.com/',
                     }
-                    r_buttons = self.paypal_sess.get(buttons_url, headers=buttons_headers, timeout=30)
+                    r_buttons = self.paypal_sess.get(buttons_url, headers=buttons_headers, timeout=60)
                     if r_buttons.status_code == 200:
                         pattern = r'"facilitatorAccessToken":"([^"]+)"'
                         match = re.search(pattern, r_buttons.text)
@@ -365,7 +365,7 @@ class WooCommercePayPal:
             params={"wc-ajax": "ppc-create-order"},
             headers=self.headers_ajax(json_content=True),
             json=payload,
-            timeout=30
+            timeout=60
         )
         try:
             result = r.json()
@@ -431,7 +431,7 @@ class WooCommercePayPal:
             f'https://www.paypal.com/v2/checkout/orders/{self.paypal_order_id}/confirm-payment-source',
             headers=headers,
             json=payload,
-            timeout=30
+            timeout=60
         )
         try:
             result = r.json()
@@ -453,12 +453,12 @@ class WooCommercePayPal:
             'referer': f'https://www.paypal.com/heliosnext/threeDS?cart_id={self.paypal_order_id}',
         }
         payload = {'token': self.paypal_order_id, 'action': 'verify'}
-        r1 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/session', headers=headers, json=payload, timeout=30)
+        r1 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/session', headers=headers, json=payload, timeout=60)
         ddc_jwt = r1.json().get("ddcJwtData")
         if ddc_jwt:
             self.paypal_sess.post('https://www.paypal.com/payment-authentication/threeds/v1/init-method',
                                   headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA},
-                                  data={'JWT': ddc_jwt}, timeout=30)
+                                  data={'JWT': ddc_jwt}, timeout=60)
         lookup_payload = {
             'token': self.paypal_order_id, 'action': 'verify',
             'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'ar', 'colorDepth': 24,
@@ -466,7 +466,7 @@ class WooCommercePayPal:
                            'deviceInfo': 'COMPUTER'}
         }
         print(f"[{datetime.now().strftime('%H:%M:%S')}] جاري Lookup النهائي...")
-        r3 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=30)
+        r3 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=60)
         res = r3.json()
         status = res.get("threeDSStatus", "UNKNOWN")
         auth_flow = res.get("authFlow", "UNKNOWN")
