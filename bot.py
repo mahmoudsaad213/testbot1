@@ -19,7 +19,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 # ====== إعدادات البوت ======
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"  # 🔥 ضع توكن البوت هنا
+BOT_TOKEN = "7458997340:AAEKGFvkALm5usoFBvKdbGEs4b2dz5iSwtw"
 ADMIN_IDS = [5895491379, 844663875]  # 🔥 معرفات الأدمن
 CHANNEL_ID = -1003154179190  # 🔥 معرف القناة
 
