@@ -40,19 +40,19 @@ USER_AGENTS = [
 # الكوكيز الثابتة (مهمة جدًا!)
 INITIAL_COOKIES = {
     'sbjs_migrations': '1418474375998%3D1',
-    'sbjs_current_add': 'fd%3D2025-10-28%2023%3A18%3A01%7C%7C%7Cep%3Dhttps%3A%2F%2Fcablemod.com%2F%3Fsrsltid%3DAfmBOopmJLOE7dLnPJqAwLhnyEQX4ZbFfElY8vnAAnYtUIEPHpXB5z6M%7C%7C%7Crf%3Dhttps%3A%2F%2Fwww.google.com%2F',
-    'sbjs_first_add': 'fd%3D2025-10-28%2023%3A18%3A01%7C%7C%7Cep%3Dhttps%3A%2F%2Fcablemod.com%2F%3Fsrsltid%3DAfmBOopmJLOE7dLnPJqAwLhnyEQX4ZbFfElY8vnAAnYtUIEPHpXB5z6M%7C%7C%7Crf%3Dhttps%3A%2F%2Fwww.google.com%2F',
-    'sbjs_current': 'typ%3Dorganic%7C%7C%7Csrc%3Dgoogle%7C%7C%7Cmdm%3Dorganic%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-    'sbjs_first': 'typ%3Dorganic%7C%7C%7Csrc%3Dgoogle%7C%7C%7Cmdm%3Dorganic%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-    'sbjs_udata': 'vst%3D1%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%2010%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
-    '_fbp': 'fb.1.1761693482072.783059716330931642',
-    '_ga': 'GA1.1.543617456.1761693483',
+    'sbjs_current_add': 'fd%3D2025-10-29%2003%3A30%3A30%7C%7C%7Cep%3Dhttps%3A%2F%2Fstore.cablemod.com%2F%7C%7C%7Crf%3D%28none%29',
+    'sbjs_first_add': 'fd%3D2025-10-29%2003%3A30%3A30%7C%7C%7Cep%3Dhttps%3A%2F%2Fstore.cablemod.com%2F%7C%7C%7Crf%3D%28none%29',
+    'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+    'sbjs_first': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+    '_fbp': 'fb.1.1761708631114.849070321437511942',
+    '_ga': 'GA1.1.823141992.1761708632',
+    'wordpress_logged_in_ed7813b5c1349c2f14d2f89aad48ec92': 'i0ket57dzb%7C1762918248%7CYdrLmoOaJVRAPuUQxvsIocmsmEmIK9U7Dt36uAg6LjC%7Cf93f09e32eb6e5b1b231f866e4b139366f7f7adaffe4c74d714568d234ada59d',
+    '_gcl_au': '1.1.1260044278.1761708631.1187310843.1761708642.1761708669',
     'woocommerce_items_in_cart': '1',
-    'woocommerce_recently_viewed': '1902265',
-    'wordpress_logged_in_ed7813b5c1349c2f14d2f89aad48ec92': 'i0ket57dzb%7C1762908222%7Cjsh0lltx9PceoroQvpEOSGJ37HkKuBm16eDRVujmwwjq%7C58f193d4befcde327b8e1a1c0d16308a4974ce1e013aa70c85fffedd81ffc6eb',
-    'wp_woocommerce_session_ed7813b5c1349c2f14d2f89aad48ec92': '114471%7C1761866332%7C1761779932%7C%24generic%24FzmPQxa-1erHcRmPGoP-Y-huTFjZ7ndfiApBJIEk',
-    '_gcl_au': '1.1.1373112383.1761693482.1617057511.1761696403.1761698675',
-    'woocommerce_cart_hash': '59b29a9c285b9235836a077996070a0f',
+    'woocommerce_cart_hash': '0c256c5b280165ee7797d5da6cf2949b',
+    'wp_woocommerce_session_ed7813b5c1349c2f14d2f89aad48ec92': '114471%7C1762313510%7C1761795110%7C%24generic%24zNpJHnVvxqPTf40fKcg9REZ_f7WuvPUGZk54aXkr',
+    'sbjs_udata': 'vst%3D2%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
+    '_ga_QYTKZE93WJ': 'GS2.1.s1761733879$o2$g1$t1761734601$j47$l0$h1976509677',
 }
 
 PAYPAL_COOKIES = {
