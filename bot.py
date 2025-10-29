@@ -485,37 +485,86 @@ class WooCommercePayPal:
             raise
     
 def step6_3ds_verification(self):
-    headers = {
-        'accept': '*/*',
-        'content-type': 'application/json',
-        'user-agent': UA,
-        'origin': 'https://www.paypal.com',
-        'referer': f'https://www.paypal.com/heliosnext/threeDS?cart_id={self.paypal_order_id}',
-    }
-    payload = {'token': self.paypal_order_id, 'action': 'verify'}
-    r1 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/session', headers=headers, json=payload, timeout=30)
-    ddc_jwt = r1.json().get("ddcJwtData")
-    if ddc_jwt:
-        self.paypal_sess.post('https://www.paypal.com/payment-authentication/threeds/v1/init-method',
-                              headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA},
-                              data={'JWT': ddc_jwt}, timeout=30)
-    lookup_payload = {
-        'token': self.paypal_order_id, 'action': 'verify',
-        'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'ar', 'colorDepth': 24,
-                       'screenHeight': 535, 'screenWidth': 450, 'userAgent': UA, 'timeZoneOffset': -180,
-                       'deviceInfo': 'COMPUTER'}
-    }
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏳ جاري Lookup النهائي...")
-    r3 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=30)
-    res = r3.json()
-    status = res.get("threeDSStatus", "UNKNOWN")
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ ✓ 3DS Status: {status}")
-    if status == "SUCCESS":
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ ✓ Auth Flow: FRICTIONLESS")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ ✓ Liability Shift: POSSIBLE")
-    elif status == "CHALLENGE_REQUIRED":
-        pass  # يبقى كما هو
-    return res
+        """Step 6: إتمام 3DS verification"""
+        headers = {
+            'accept': '*/*',
+            'content-type': 'application/json',
+            'user-agent': UA,
+            'origin': 'https://www.paypal.com',
+            'referer': f'https://www.paypal.com/heliosnext/threeDS?cart_id={self.paypal_order_id}',
+        }
+        
+        # Session
+        payload = {
+            'token': self.paypal_order_id,
+            'action': 'verify',
+        }
+        
+        r1 = self.paypal_sess.post(
+            'https://www.paypal.com/heliosnext/api/session',
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        try:
+            session_data = r1.json()
+            ddc_jwt = session_data.get("ddcJwtData")
+        except:
+            ddc_jwt = None
+        
+        # Init Method
+        if ddc_jwt:
+            self.paypal_sess.post(
+                'https://www.paypal.com/payment-authentication/threeds/v1/init-method',
+                headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA},
+                data={'JWT': ddc_jwt},
+                timeout=30
+            )
+        
+        # Lookup
+        lookup_payload = {
+            'token': self.paypal_order_id,
+            'action': 'verify',
+            'deviceInfo': {
+                'windowSize': '_500_x_600',
+                'javaEnabled': False,
+                'language': 'ar',
+                'colorDepth': 24,
+                'screenHeight': 535,
+                'screenWidth': 450,
+                'userAgent': UA,
+                'timeZoneOffset': -180,
+                'deviceInfo': 'COMPUTER',
+            },
+        }
+        
+        r3 = self.paypal_sess.post(
+            'https://www.paypal.com/heliosnext/api/lookup',
+            headers=headers,
+            json=lookup_payload,
+            timeout=30
+        )
+        
+        try:
+            result = r3.json()
+            # استخراج التفاصيل الكاملة
+            three_ds_status = result.get("threeDSStatus", "UNKNOWN")
+            auth_flow = result.get("authenticationFlow", "UNKNOWN")
+            liability_shift = result.get("liabilityShift", "UNKNOWN")
+            
+            return {
+                "threeDSStatus": three_ds_status,
+                "authenticationFlow": auth_flow,
+                "liabilityShift": liability_shift,
+                "full_response": result
+            }
+        except:
+            return {
+                "threeDSStatus": "UNKNOWN",
+                "authenticationFlow": "UNKNOWN", 
+                "liabilityShift": "UNKNOWN"
+            }
     def run(self, card_str: str):
         """تنفيذ العملية الكاملة مع ملخص الحالة فقط"""
         try:
