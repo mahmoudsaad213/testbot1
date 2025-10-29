@@ -672,7 +672,8 @@ async def process_cards(cards, bot_app):
             await update_dashboard(bot_app)
         await asyncio.sleep(2)
     stats['is_running'] = False
- rendez-vous  stats['checking'] = 0
+    rendez-vous  
+    stats['checking'] = 0
     stats['current_card'] = ''
     stats['last_response'] = 'Completed'
     await update_dashboard(bot_app)
