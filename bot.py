@@ -802,7 +802,7 @@ async def process_cards(cards, bot_app):
         stats['cards_checked'] += 1
         if stats['cards_checked'] % 3 == 0:
             await update_dashboard(bot_app)
-        await asyncio.sleep(2)
+        # await asyncio.sleep(2)
     stats['is_running'] = False
     stats['checking'] = 0
     stats['current_card'] = ''
