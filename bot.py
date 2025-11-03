@@ -30,6 +30,7 @@ PARAMS = {"pEx": "4"}
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 
 initial_cookies = {
+    'wt_mcp_sid': '2035992315',
     'lantern': 'acae1b5d-f800-4e2d-8364-1492a117d8c1',
     'LPVID': 'IxZmZhMDIxYWNlNjkyNzdl',
     '.AspNet.Consent': 'yes',
@@ -42,21 +43,21 @@ initial_cookies = {
     'ra_NewType': '1',
     'Loop54User': 'ba495721-c02b-4464-9dc9-5b2a89c2af58',
     'ra_BAS': 'L3ZduBJfweo2kca9khjBJw%3D%3D',
-    '.AspNetCore.Antiforgery.ewfMgV3Kz2g': 'CfDJ8IAvExQjoXNFuGlpY7xOM3Sam29QrRZklWN6ECj1Kqb1G05cQ-8JWE-CcbaHFPTvgH7QZRFxcRK9EJiSlHWRiAzOD5NHHO5mtqt7aI39YlXFojLXYe5uChnpTk3En71l0TGuGIStDMT8WpAECTPXp9s',
-    'ra_Vat': 'false',
-    '_ga': 'GA1.1.1861626305.1762104067',
     'wtstp_nv': '0',
+    '.AspNetCore.Antiforgery.ewfMgV3Kz2g': 'CfDJ8IAvExQjoXNFuGlpY7xOM3TE4dV72thieyEWZKdqZUj4HwA51Wp6Ey3uADXLsebWXYiP0oDQZLSCCrpFRad155uATmoAA_EG8tp4pYkXQesnP09DbgNjh6QpQiFbaTULzICuFHwL8DO-8lk8cbvUW1s',
+    'ra_Vat': 'false',
+    '_aw_j_1799': '{"id":"5a28ccc0-e01d-42d3-babf-33b4a3ef554f-1","expiration":1770098221}',
+    '_ga': 'GA1.1.713422496.1762214223',
+    '__hstc': '57241397.72c5200adc9d6d8ebf2d8ae05e71125a.1761758106430.1762109714063.1762214224815.11',
     '__hssrc': '1',
-    'wt_mcp_sid': '2761376728',
-    '__hstc': '57241397.72c5200adc9d6d8ebf2d8ae05e71125a.1761758106430.1762104094121.1762109714063.10',
-    'LPSID-66449020': '_4KprdiMSlGb9Kik5gwSZQ',
-    'ra_session': 'CfDJ8IAvExQjoXNFuGlpY7xOM3T%2FBjxXYUCQA42uULnYFp59ZhBb92ofzPuPMx4otLuUruxoPCgq%2F0yE9EEq6Xyxh1GcWCumlvms30dc%2FPaMese%2F95FOe%2BpTuZIrpSCnbX7BiSGoAABjlR8hyatzF6hzO6%2BVkM5%2BKpikddpHtMQeRjrl',
-    '_gcl_au': '1.1.394309076.1761758104.1607961560.1762109718.1762109739',
-    '_uetsid': '5456e8d0b81011f0adea2b89cd89d957',
+    'LPSID-66449020': 'eJFyoYU-SSeACVOHHA4agQ',
+    'ra_session': 'CfDJ8IAvExQjoXNFuGlpY7xOM3QUBkxpb0GGMddMw%2Fbh7j1Houe5ELeEFbAvf0wWWGhfwKfShdcFqXsbS2f1ZtZDREUKMbcBNjqEOTs%2FBWAS9hGRCbd5kwFKL%2FkFFdBfvpuXJ9SAU9GMH1Fp8hu2rZYerPoP6OoeHLDUKcTAzyqiF0%2Bn',
+    '_gcl_au': '1.1.394309076.1761758104.1822542733.1762214330.1762214339',
+    '_ga_746MCRLCR7': 'GS2.1.s1762214222$o1$g1$t1762214355$j59$l0$h0',
+    '_uetsid': 'cb8e1e20b91011f0b8b387470b705f1d',
     '_uetvid': 'cf8cc6d0b4ea11f0834afb0053d84740',
-    '__hssc': '57241397.4.1762109714063',
-    '_ga_746MCRLCR7': 'GS2.1.s1762109708$o2$g1$t1762109745$j23$l0$h0',
-    'wtstp_rla': '948385406878459%2C68%2C1762109704883',
+    '__hssc': '57241397.6.1762214224815',
+    'wtstp_rla': '948385406878459%2C74%2C1762214223940',
 }
 
 # ========== إحصائيات ==========
