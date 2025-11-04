@@ -329,6 +329,12 @@ async def check_card(card, bot_app, auth_cookies):
         print(f"[✓] Stripe Response Code: {response.status_code}")
         result = response.json()
         
+        # 🔥 حفظ الـ Response للفحص
+        response_file = f"bot_response_{card_number[:6]}.json"
+        with open(response_file, "w") as f:
+            json.dump(result, f, indent=2)
+        print(f"[💾] Response saved to: {response_file}")
+        
         if 'error' in result:
             error_msg = result['error'].get('message', 'Unknown')
             error_code = result['error'].get('code', 'Unknown')
@@ -354,6 +360,13 @@ async def check_card(card, bot_app, auth_cookies):
             print(f"[✓] 3DS Response Code: {auth_response.status_code}")
             
             auth_result = auth_response.json()
+            
+            # 🔥 حفظ الـ 3DS Response
+            auth_file = f"bot_3ds_{card_number[:6]}.json"
+            with open(auth_file, "w") as f:
+                json.dump(auth_result, f, indent=2)
+            print(f"[💾] 3DS Response saved to: {auth_file}")
+            
             print(f"[📊] 3DS Response keys: {list(auth_result.keys())}")
             
             trans_status = auth_result.get('ares', {}).get('transStatus', 'Unknown')
