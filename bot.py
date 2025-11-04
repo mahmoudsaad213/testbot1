@@ -18,8 +18,8 @@ ADMIN_IDS = [5895491379, 844663875]
 CHANNEL_ID = -1003154179190  # 🔥 معرف القناة
 
 # بيانات تسجيل الدخول
-USERNAME = "oppo325267@outlook.com"
-PASSWORD = "oppo325267@outlook.com"
+USERNAME = "mafj92368"
+PASSWORD = "mafj92368@outlook.com"
 LOGIN_URL = "https://my.knownhost.com/client/login"
 AUTH_COOKIES_FILE = "auth_cookies.json"
 
