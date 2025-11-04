@@ -405,7 +405,25 @@ async def check_card(card, bot_app, auth_cookies):
                 return card, "AUTH_ATTEMPTED", "Auth Attempted"
             else:
                 print(f"[⚠️] Unknown status: {trans_status}")
-                print(f"[📄] Full 3DS response: {auth_result}")
+                print(f"[📄] Full 3DS response: {json.dumps(auth_result, indent=2)}")
+                
+                # 🔥 إرسال Debug info للأدمن
+                debug_text = (
+                    f"⚠️ **DEBUG - Unknown Status**\n\n"
+                    f"💳 Card: `{card_number[:6]}****{card_number[-4:]}`\n"
+                    f"🎯 Status: `{trans_status}`\n\n"
+                    f"📄 **3DS Response:**\n```json\n{json.dumps(auth_result, indent=2)[:3000]}\n```"
+                )
+                
+                try:
+                    await bot_app.bot.send_message(
+                        chat_id=stats['chat_id'],  # للأدمن مش القناة
+                        text=debug_text,
+                        parse_mode='Markdown'
+                    )
+                except:
+                    pass
+                
                 stats['errors'] += 1
                 stats['checking'] -= 1
                 stats['last_response'] = f'Unknown: {trans_status}'
@@ -414,7 +432,24 @@ async def check_card(card, bot_app, auth_cookies):
                 return card, "UNKNOWN", trans_status
         else:
             print(f"[⚠️] No next_action in response")
-            print(f"[📄] Full response: {result}")
+            print(f"[📄] Full response: {json.dumps(result, indent=2)}")
+            
+            # 🔥 إرسال Debug info للأدمن
+            debug_text = (
+                f"⚠️ **DEBUG - No 3DS Action**\n\n"
+                f"💳 Card: `{card_number[:6]}****{card_number[-4:]}`\n\n"
+                f"📄 **Stripe Response:**\n```json\n{json.dumps(result, indent=2)[:3000]}\n```"
+            )
+            
+            try:
+                await bot_app.bot.send_message(
+                    chat_id=stats['chat_id'],
+                    text=debug_text,
+                    parse_mode='Markdown'
+                )
+            except:
+                pass
+            
             stats['errors'] += 1
             stats['checking'] -= 1
             stats['last_response'] = 'No 3DS Action'
