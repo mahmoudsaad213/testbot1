@@ -21,6 +21,7 @@ stats = {
     'not_auth': 0,
     'unavailable': 0,
     'declined': 0,
+    'failed_auth': 0,  # جديد
     'errors': 0,
     'start_time': None,
     'is_running': False,
@@ -142,6 +143,41 @@ class StripeChecker:
                 status = auth['ares'].get('transStatus', 'UNKNOWN')
                 if status == 'R':
                     return 'DECLINED', 'Rejected by issuer'
+                
+                # إذا كانت الحالة C، نفحص الـ Challenge
+                if status == 'C' and 'creq' in auth and 'acsURL' in auth['ares']:
+                    try:
+                        creq = auth['creq']
+                        acs_url = auth['ares']['acsURL']
+                        
+                        # إعداد headers للطلب
+                        challenge_headers = {
+                            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                            'content-type': 'application/x-www-form-urlencoded',
+                            'origin': 'https://js.stripe.com',
+                            'referer': 'https://js.stripe.com/',
+                            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        }
+                        
+                        challenge_data = {'creq': creq}
+                        
+                        # إرسال الطلب
+                        challenge_response = self.session.post(
+                            acs_url,
+                            headers=challenge_headers,
+                            data=challenge_data,
+                            timeout=15
+                        )
+                        
+                        # فحص الرد
+                        html_response = challenge_response.text
+                        if 'Authentication failed' in html_response:
+                            return 'FAILED_AUTH', 'Authentication failed in challenge'
+                        
+                    except Exception as e:
+                        # لو حصل خطأ في الفحص، نكمل عادي ونعتبرها C
+                        pass
+                
                 return status, f'3DS Status: {status}'
             return 'DECLINED', 'Authentication failed'
             
@@ -239,6 +275,13 @@ async def check_card(card, bot_app):
             await send_result(bot_app, card, "Y", message)
             return card, "Y", message
             
+        elif status == 'FAILED_AUTH':
+            stats['failed_auth'] += 1
+            stats['checking'] -= 1
+            stats['last_response'] = 'Failed Auth ❌'
+            await update_dashboard(bot_app)
+            return card, "FAILED_AUTH", message
+            
         elif status == 'C':
             stats['challenge'] += 1
             stats['checking'] -= 1
@@ -305,7 +348,7 @@ def create_dashboard_keyboard():
         ],
         [
             InlineKeyboardButton(f"✅ Y: {stats['authenticated']}", callback_data="authenticated"),
-            InlineKeyboardButton(f"⚠️ C: {stats['challenge']}",callback_data="challenge")
+            InlineKeyboardButton(f"⚠️ C: {stats['challenge']}", callback_data="challenge")
         ],
         [
             InlineKeyboardButton(f"🔵 A: {stats['attempted']}", callback_data="attempted"),
@@ -314,6 +357,9 @@ def create_dashboard_keyboard():
         [
             InlineKeyboardButton(f"🔴 U: {stats['unavailable']}", callback_data="unavailable"),
             InlineKeyboardButton(f"❌ Declined: {stats['declined']}", callback_data="declined")
+        ],
+        [
+            InlineKeyboardButton(f"❌ Failed Auth: {stats['failed_auth']}", callback_data="failed_auth")
         ],
         [
             InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors")
@@ -401,7 +447,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔵 A - Attempted\n"
         "❌ N - Not Authenticated\n"
         "🔴 U - Unavailable\n"
-        "❌ Declined/Rejected (R)",
+        "❌ Declined/Rejected (R)\n"
+        "❌ Failed Auth - فشل المصادقة",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -428,6 +475,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'not_auth': 0,
         'unavailable': 0,
         'declined': 0,
+        'failed_auth': 0,
         'errors': 0,
         'current_card': '',
         'error_details': {},
@@ -455,7 +503,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
     
-    # استخدام asyncio.create_task بدل threading
     asyncio.create_task(process_cards(cards, context.application))
 
 async def process_cards(cards, bot_app):
@@ -485,9 +532,9 @@ async def process_cards(cards, bot_app):
     await update_dashboard(bot_app)
     
     summary_text = (
-        "═══════════════════\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
         "✅ **اكتمل الفحص!** ✅\n"
-        "═══════════════════\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n\n"
         f"📊 **الإحصائيات النهائية:**\n"
         f"🔥 الإجمالي: {stats['total']}\n"
         f"✅ Authenticated (Y): {stats['authenticated']}\n"
@@ -496,6 +543,7 @@ async def process_cards(cards, bot_app):
         f"❌ Not Auth (N): {stats['not_auth']}\n"
         f"🔴 Unavailable (U): {stats['unavailable']}\n"
         f"❌ Declined/Rejected: {stats['declined']}\n"
+        f"❌ Failed Auth: {stats['failed_auth']}\n"
         f"⚠️ Errors: {stats['errors']}\n\n"
         "📁 **جاري إرسال الملفات...**"
     )
@@ -559,6 +607,7 @@ def main():
     print("[🤖] Starting Stripe 3DS Telegram Bot...")
     print("[✅] Bot will send results in chat (no channel)")
     print("[✅] Using asyncio.create_task (no threading)")
+    print("[✅] Failed Authentication detection enabled")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
