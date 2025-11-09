@@ -150,10 +150,6 @@ class StripeChecker:
                         creq = auth['creq']
                         acs_url = auth['ares']['acsURL']
                         
-                        print(f"[DEBUG] Challenge detected for card")
-                        print(f"[DEBUG] ACS URL: {acs_url}")
-                        print(f"[DEBUG] CREQ: {creq[:50]}...")
-                        
                         # إعداد headers مع cookies للطلب
                         challenge_headers = {
                             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -177,7 +173,6 @@ class StripeChecker:
                         challenge_data = {'creq': creq}
                         
                         # إرسال الطلب
-                        print(f"[DEBUG] Sending challenge request...")
                         challenge_response = self.session.post(
                             acs_url,
                             headers=challenge_headers,
@@ -188,21 +183,12 @@ class StripeChecker:
                         
                         # فحص الرد
                         html_response = challenge_response.text
-                        print(f"[DEBUG] Response status: {challenge_response.status_code}")
-                        print(f"[DEBUG] Response length: {len(html_response)}")
                         
                         # فحص أكثر من كلمة للتأكد
                         if 'Authentication failed' in html_response or 'authentication failed' in html_response.lower():
-                            print(f"[DEBUG] ✅ Found 'Authentication failed' in response!")
                             return 'FAILED_AUTH', 'Authentication failed in challenge'
-                        else:
-                            print(f"[DEBUG] ❌ 'Authentication failed' NOT found in response")
-                            # نطبع جزء من الـ response للتشخيص
-                            if len(html_response) > 200:
-                                print(f"[DEBUG] Response preview: {html_response[:200]}...")
                         
                     except Exception as e:
-                        print(f"[DEBUG] Error in challenge check: {str(e)}")
                         # لو حصل خطأ في الفحص، نكمل عادي ونعتبرها C
                         pass
                 
@@ -635,7 +621,7 @@ def main():
     print("[🤖] Starting Stripe 3DS Telegram Bot...")
     print("[✅] Bot will send results in chat (no channel)")
     print("[✅] Using asyncio.create_task (no threading)")
-    print("[✅] Failed Authentication detection enabled with DEBUG logs")
+    print("[✅] Failed Authentication detection enabled")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
