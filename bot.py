@@ -184,11 +184,17 @@ class StripeChecker:
                         # فحص الرد
                         html_response = challenge_response.text
                         
-                        # فحص أكثر من كلمة للتأكد من الفشل
-                        if ('Authentication failed' in html_response or 
-                            'authentication failed' in html_response.lower() or
-                            'Sorry, something went wrong' in html_response or
-                            'something went wrong' in html_response.lower()):
+                        # فحص جميع حالات الفشل
+                        failure_keywords = [
+                            'Authentication failed',
+                            'authentication failed',
+                            'Sorry, something went wrong',
+                            'something went wrong',
+                            "There's a problem with your card",
+                            'problem with your card'
+                        ]
+                        
+                        if any(keyword in html_response.lower() for keyword in [k.lower() for k in failure_keywords]):
                             return 'FAILED_AUTH', 'Authentication failed in challenge'
                         
                     except Exception as e:
