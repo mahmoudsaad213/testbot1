@@ -70,7 +70,7 @@ class StripeChecker:
             })
             
             payload = {
-                'cartId': 'VAWQqZQSTx9FHIu2WhaKaheaAtuOzykU',
+                'cartId': 'ePzsAKMnSsf9hAFC7i7bFz6YKrR9HYm9',
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
