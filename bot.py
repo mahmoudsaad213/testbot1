@@ -270,11 +270,20 @@ class StripeChecker:
             
             r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers, data=data)
             auth = r.json()
+            print(f"[*] 3DS Auth response: {auth}")
+            
+            if 'error' in auth:
+                print(f"[!] 3DS Authentication error: {auth['error']}")
+                return 'ERROR', f"3DS Error: {auth['error'].get('message', 'Unknown')}"
             
             if 'ares' in auth:
                 status = auth['ares'].get('transStatus', 'UNKNOWN')
+                print(f"[*] 3DS Transaction Status: {status}")
+                
                 if status == 'R':
-                    return 'DECLINED', 'Rejected by issuer'
+                    reason = auth['ares'].get('transStatusReason', 'Rejected by issuer')
+                    print(f"[!] Rejected - Reason: {reason}")
+                    return 'DECLINED', f'Rejected: {reason}'
                 
                 if status == 'C' and 'creq' in auth and 'ares' in auth and 'acsURL' in auth['ares']:
                     try:
@@ -328,10 +337,15 @@ class StripeChecker:
                         pass
                 
                 return status, f'3DS Status: {status}'
-            return 'DECLINED', 'Authentication failed'
+            
+            print(f"[!] Unexpected auth response structure")
+            return 'DECLINED', f'Auth failed: {str(auth)[:100]}'
             
         except Exception as e:
-            return 'ERROR', str(e)
+            print(f"[!] Exception in check: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return 'ERROR', f'Exception: {str(e)}'
 
 async def send_result(bot_app, card, status_type, message):
     try:
@@ -387,7 +401,12 @@ async def send_result(bot_app, card, status_type, message):
         print(f"[!] Error: {e}")
 
 async def check_card(card, bot_app):
+    print(f"\n{'='*50}")
+    print(f"[>>] Starting check_card for: {card}")
+    print(f"{'='*50}")
+    
     if not stats['is_running']:
+        print("[!] Check stopped - is_running = False")
         return card, "STOPPED", "تم الإيقاف"
     
     parts = card.strip().split('|')
