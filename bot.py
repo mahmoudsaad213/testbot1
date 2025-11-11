@@ -180,9 +180,13 @@ class StripeChecker:
             
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
+            print(f"[*] Payment method response: {pm}")
             if 'id' not in pm:
-                return 'DECLINED', 'Payment method creation failed'
+                error_msg = pm.get('error', {}).get('message', 'Unknown error')
+                print(f"[!] Payment method creation failed: {error_msg}")
+                return 'DECLINED', f'Payment method failed: {error_msg}'
             pm_id = pm['id']
+            print(f"[✓] Payment method created: {pm_id}")
             
             headers = self.headers.copy()
             headers.update({
@@ -211,11 +215,17 @@ class StripeChecker:
             }
             
             r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{quote_id}/payment-information', headers=headers, json=payload)
+            print(f"[*] Payment info response status: {r.status_code}")
+            print(f"[*] Payment info response: {r.text[:500]}")
+            
             res = r.json()
             if 'message' not in res or 'pi_' not in res['message']:
-                return 'DECLINED', 'Payment intent creation failed'
+                error_msg = res.get('message', 'Unknown error')
+                print(f"[!] Payment intent creation failed: {error_msg}")
+                return 'DECLINED', f'Payment intent failed: {error_msg}'
             client_secret = res['message'].split(': ')[1]
             pi_id = client_secret.split('_secret_')[0]
+            print(f"[✓] Payment intent created: {pi_id}")
             
             headers = self.headers.copy()
             headers.update({
