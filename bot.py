@@ -49,104 +49,106 @@ class StripeChecker:
         """إنشاء سلة جديدة والحصول على quoteId"""
         try:
             print("[*] Creating new cart...")
-            cookies = {
-                'store_switcher_popup_closed': 'closed',
-                'store': 'default',
-                'geoip_store_code': 'default',
-                'searchReport-log': '0',
-                '_ga': 'GA1.1.1117311913.1762822685',
-                '_fbp': 'fb.1.1762822684983.555449526293831509',
+            
+            # إنشاء session جديدة لكل cart
+            import time
+            import random
+            
+            # الحصول على الصفحة الرئيسية أولاً للحصول على cookies
+            home_response = self.session.get('https://www.ironmongeryworld.com/')
+            
+            # إضافة المنتج للسلة
+            data = {
+                'product': '16484',
+                'selected_configurable_option': '',
+                'related_product': '',
+                'item': '16484',
                 'form_key': 'slSdPjvgeIrs2Jbv',
-                'mage-cache-storage': '{}',
-                'mage-cache-storage-section-invalidation': '{}',
-                'mage-messages': '',
-                'recently_viewed_product': '{}',
-                'recently_viewed_product_previous': '{}',
-                'recently_compared_product': '{}',
-                'recently_compared_product_previous': '{}',
-                'product_data_storage': '{}',
-                'currency_code': 'GBP',
-                'twk_idm_key': 'If05Y4iPf8GjS1U3HQ2KA',
-                'PHPSESSID': 'vrpcdoq0uac8mpci1cgqeo8jr2',
-                'mage-cache-sessid': 'true',
-                '__stripe_mid': 'dbf99062-2426-4422-aeaa-5281ab702aad274b35',
-                '__stripe_sid': '66f0a1c2-42eb-498f-908e-64249c618bdeab244f',
-                'wp_customerGroup': 'NOT%20LOGGED%20IN',
-                '_gcl_au': '1.1.128175039.1762822685.606519831.1762822689.1762823296',
+                'qty': '1'
             }
-
+            
             headers = {
-                'accept': 'application/json, text/javascript, */*; q=0.01',
-                'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
-                'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryzpgjYWHuq3LNOAfe',
-                'dnt': '1',
+                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'accept-language': 'en-US,en;q=0.9',
+                'content-type': 'application/x-www-form-urlencoded',
                 'origin': 'https://www.ironmongeryworld.com',
-                'priority': 'u=1, i',
                 'referer': 'https://www.ironmongeryworld.com/air-bricks-vents-trivets/round-circle-hit-miss-sliding-vent-antique-iron.html',
-                'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Windows"',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-origin',
                 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-                'x-requested-with': 'XMLHttpRequest',
             }
-
-            files = {
-                'product': (None, '16484'),
-                'selected_configurable_option': (None, ''),
-                'related_product': (None, ''),
-                'item': (None, '16484'),
-                'form_key': (None, 'slSdPjvgeIrs2Jbv'),
-                'qty': (None, '1'),
-            }
-
-            response = self.session.post(
+            
+            add_response = self.session.post(
                 'https://www.ironmongeryworld.com/checkout/cart/add/uenc/aHR0cHM6Ly93d3cuaXJvbm1vbmdlcnl3b3JsZC5jb20vYWlyLWJyaWNrcy12ZW50cy10cml2ZXRzL3JvdW5kLWNpcmNsZS1oaXQtbWlzcy1zbGlkaW5nLXZlbnQtYW50aXF1ZS1pcm9uLmh0bWw%2C/product/16484/',
-                cookies=cookies,
+                data=data,
                 headers=headers,
-                files=files,
+                allow_redirects=True
             )
-
+            
+            print(f"[*] Add to cart status: {add_response.status_code}")
+            
+            # انتظار قصير
+            time.sleep(0.5)
+            
             # الحصول على معلومات السلة
             params = {
                 'sections': 'cart',
-                'force_new_section_timestamp': 'false',
-                '_': str(int(datetime.now().timestamp() * 1000)),
+                'force_new_section_timestamp': 'true',
+                '_': str(int(time.time() * 1000)),
+            }
+            
+            cart_headers = {
+                'accept': 'application/json, text/javascript, */*; q=0.01',
+                'accept-language': 'en-US,en;q=0.9',
+                'referer': 'https://www.ironmongeryworld.com/checkout/cart/',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'x-requested-with': 'XMLHttpRequest',
             }
 
             cart_response = self.session.get(
                 'https://www.ironmongeryworld.com/customer/section/load/',
                 params=params,
-                cookies=cookies,
-                headers={
-                    'accept': 'application/json, text/javascript, */*; q=0.01',
-                    'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
-                    'dnt': '1',
-                    'priority': 'u=1, i',
-                    'referer': 'https://www.ironmongeryworld.com/checkout/cart/',
-                    'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-                    'sec-ch-ua-mobile': '?0',
-                    'sec-ch-ua-platform': '"Windows"',
-                    'sec-fetch-dest': 'empty',
-                    'sec-fetch-mode': 'cors',
-                    'sec-fetch-site': 'same-origin',
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-                    'x-requested-with': 'XMLHttpRequest',
-                }
+                headers=cart_headers
             )
 
             cart_data = cart_response.json()
             
-            print(f"[*] Cart response: {cart_data}")
+            print(f"[*] Cart items count: {cart_data.get('cart', {}).get('summary_count', 0)}")
             
-            if 'cart' in cart_data and 'mpquickcart' in cart_data['cart'] and 'quoteId' in cart_data['cart']['mpquickcart']:
-                quote_id = cart_data['cart']['mpquickcart']['quoteId']
-                print(f"[✓] New cart created: {quote_id}")
-                return quote_id
+            if 'cart' in cart_data and 'mpquickcart' in cart_data['cart']:
+                quote_id = cart_data['cart']['mpquickcart'].get('quoteId')
+                
+                if quote_id:
+                    print(f"[✓] New cart created with quoteId: {quote_id}")
+                    return quote_id
+                else:
+                    # إذا لم يكن هناك quoteId، جرب استخراجه من API مباشرة
+                    print("[*] Trying to create guest cart via API...")
+                    api_response = self.session.post(
+                        'https://www.ironmongeryworld.com/rest/default/V1/guest-carts',
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    if api_response.status_code == 200:
+                        new_quote_id = api_response.json()
+                        print(f"[✓] Created guest cart via API: {new_quote_id}")
+                        
+                        # إضافة المنتج للسلة الجديدة
+                        item_payload = {
+                            'cartItem': {
+                                'sku': 'TempRCHM',
+                                'qty': 1,
+                                'quote_id': new_quote_id
+                            }
+                        }
+                        self.session.post(
+                            f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{new_quote_id}/items',
+                            json=item_payload,
+                            headers={'Content-Type': 'application/json'}
+                        )
+                        return new_quote_id
+                    else:
+                        print(f"[!] API cart creation failed: {api_response.status_code}")
+                        return None
             else:
-                print(f"[!] quoteId not found in response")
+                print(f"[!] Cart data structure unexpected")
                 return None
                 
         except Exception as e:
