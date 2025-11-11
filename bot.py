@@ -70,7 +70,7 @@ class StripeChecker:
             })
             
             payload = {
-                'cartId': 'Po9ukXigB3Dus69b8SJERtt2J6UpCXMp',
+                'cartId': 'QDnJXaH3k9BtDQdPzjdY3kj1JktACIUv',
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
@@ -88,7 +88,7 @@ class StripeChecker:
                 'email': 'test@test.com',
             }
             
-            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/Po9ukXigB3Dus69b8SJERtt2J6UpCXMp/payment-information', headers=headers, json=payload)
+            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/QDnJXaH3k9BtDQdPzjdY3kj1JktACIUv/payment-information', headers=headers, json=payload)
             res = r.json()
             if 'message' not in res or 'pi_' not in res['message']:
                 return 'DECLINED', 'Payment intent creation failed'
