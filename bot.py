@@ -48,6 +48,7 @@ class StripeChecker:
     def create_new_cart(self):
         """إنشاء سلة جديدة والحصول على quoteId"""
         try:
+            print("[*] Creating new cart...")
             cookies = {
                 'store_switcher_popup_closed': 'closed',
                 'store': 'default',
@@ -138,22 +139,33 @@ class StripeChecker:
 
             cart_data = cart_response.json()
             
+            print(f"[*] Cart response: {cart_data}")
+            
             if 'cart' in cart_data and 'mpquickcart' in cart_data['cart'] and 'quoteId' in cart_data['cart']['mpquickcart']:
                 quote_id = cart_data['cart']['mpquickcart']['quoteId']
+                print(f"[✓] New cart created: {quote_id}")
                 return quote_id
             else:
+                print(f"[!] quoteId not found in response")
                 return None
                 
         except Exception as e:
             print(f"[!] Error creating cart: {e}")
+            import traceback
+            traceback.print_exc()
             return None
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
+            print(f"\n[*] Checking card: {card_number[:6]}****{card_number[-4:]}")
+            
             # إنشاء سلة جديدة والحصول على quoteId
             quote_id = self.create_new_cart()
             if not quote_id:
+                print("[!] Failed to create cart - returning error")
                 return 'ERROR', 'Failed to create new cart'
+            
+            print(f"[*] Using quoteId: {quote_id}")
             
             headers = self.headers.copy()
             headers.update({
