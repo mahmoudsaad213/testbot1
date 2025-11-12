@@ -339,6 +339,12 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Failed Auth ❌'
             await update_dashboard(bot_app)
+            # إرسال رسالة الرفض
+            await bot_app.bot.send_message(
+                chat_id=stats['chat_id'],
+                text=f"❌ **FAILED AUTH**\n💳 `{card}`\n📛 السبب: {message}",
+                parse_mode='Markdown'
+            )
             return card, "FAILED_AUTH", message
             
         elif status == 'C':
@@ -362,6 +368,12 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Not Auth ❌'
             await update_dashboard(bot_app)
+            # إرسال رسالة الرفض
+            await bot_app.bot.send_message(
+                chat_id=stats['chat_id'],
+                text=f"❌ **NOT AUTHENTICATED**\n💳 `{card}`\n📛 السبب: {message}",
+                parse_mode='Markdown'
+            )
             return card, "N", message
             
         elif status == 'U':
@@ -369,6 +381,12 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Unavailable 🔴'
             await update_dashboard(bot_app)
+            # إرسال رسالة الرفض
+            await bot_app.bot.send_message(
+                chat_id=stats['chat_id'],
+                text=f"🔴 **UNAVAILABLE**\n💳 `{card}`\n📛 السبب: {message}",
+                parse_mode='Markdown'
+            )
             return card, "U", message
             
         elif status == 'DECLINED' or status == 'R':
@@ -376,6 +394,12 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Declined/Rejected ❌'
             await update_dashboard(bot_app)
+            # إرسال رسالة الرفض
+            await bot_app.bot.send_message(
+                chat_id=stats['chat_id'],
+                text=f"❌ **DECLINED/REJECTED**\n💳 `{card}`\n📛 السبب: {message}",
+                parse_mode='Markdown'
+            )
             return card, "DECLINED", message
             
         else:
@@ -383,6 +407,12 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = f'{status}'
             await update_dashboard(bot_app)
+            # إرسال رسالة الخطأ
+            await bot_app.bot.send_message(
+                chat_id=stats['chat_id'],
+                text=f"⚠️ **ERROR**\n💳 `{card}`\n📛 السبب: {status} - {message}",
+                parse_mode='Markdown'
+            )
             return card, status, message
             
     except Exception as e:
