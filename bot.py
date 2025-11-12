@@ -133,9 +133,30 @@ class StripeChecker:
             
             r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload)
             res = r.json()
+            
+            # طباعة الـ Response للتشخيص
+            print(f"[DEBUG] Payment Intent Response: {res}")
+            
             if 'message' not in res or 'pi_' not in res['message']:
-                error_msg = res.get('message', 'Unknown error')
-                return 'DECLINED', f'❌ فشل إنشاء Payment Intent: {error_msg}'
+                # محاولة الحصول على تفاصيل أكثر من الرد
+                if isinstance(res, dict):
+                    if 'message' in res:
+                        error_msg = res['message']
+                        # التحقق من أخطاء شائعة
+                        if 'expired' in str(error_msg).lower():
+                            return 'DECLINED', f'❌ السلة منتهية الصلاحية - جرب Cart ID جديد'
+                        elif 'not found' in str(error_msg).lower():
+                            return 'DECLINED', f'❌ السلة غير موجودة - تأكد من Cart ID'
+                        elif 'already' in str(error_msg).lower():
+                            return 'DECLINED', f'❌ السلة مستخدمة بالفعل - احتاج Cart ID جديد'
+                        else:
+                            return 'DECLINED', f'❌ خطأ في السلة: {error_msg}'
+                    elif 'parameters' in res:
+                        return 'DECLINED', f'❌ خطأ في البيانات: {res.get("parameters", "")}'
+                    else:
+                        return 'DECLINED', f'❌ رد غير متوقع: {str(res)[:100]}'
+                return 'DECLINED', f'❌ فشل إنشاء Payment Intent - الرد: {str(res)[:150]}'
+            
             client_secret = res['message'].split(': ')[1]
             pi_id = client_secret.split('_secret_')[0]
             
