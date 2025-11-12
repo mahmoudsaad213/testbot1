@@ -54,7 +54,7 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            data = f'billing_details[address][state]=CO&billing_details[address][postal_code]=11333&billing_details[address][country]=US&billing_details[address][city]=Napoleon&billing_details[address][line1]=111+North+Street&billing_details[address][line2]=sagh&billing_details[email]=test@test.com&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
+            data = f'billing_details[address][state]=CO&billing_details[address][postal_code]=11333&billing_details[address][country]=US&billing_details[address][city]=Napoleon&billing_details[address][line1]=111+North+Street&billing_details[address][line2]=sagh&billing_details[email]=test23627@gmail.com&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
             
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
