@@ -10,7 +10,7 @@ import base64
 # ========== الإعدادات ==========
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
 ADMIN_IDS = [5895491379, 844663875]
-cartId = "0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM"
+CART_ID = "0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM"
 # ========== إحصائيات ==========
 stats = {
     'total': 0,
@@ -70,7 +70,7 @@ class StripeChecker:
             })
             
             payload = {
-                'cartId': cartId,
+                'cartId': CART_ID,
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
@@ -88,8 +88,10 @@ class StripeChecker:
                 'email': 'test@test.com',
             }
             
-            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{cartId}/payment-information', headers=headers, json=payload)
+            url = f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information'
+            r = self.session.post(url, headers=headers, json=payload)
             res = r.json()
+            
             if 'message' not in res or 'pi_' not in res['message']:
                 return 'DECLINED', 'Payment intent creation failed'
             client_secret = res['message'].split(': ')[1]
