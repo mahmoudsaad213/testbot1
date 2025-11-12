@@ -48,7 +48,7 @@ def generate_fake_data():
         'email': email,
         'phone': phone,
         'street1': f"{street_num} {street}",
-        'street2': ''.join(random.choices(string.ascii_uppercase, k=4)),  # عنوان ثانوي عشوائي
+        'street2': ''.join(random.choices(string.ascii_uppercase, k=4)),
         'city': city,
         'state': state,
         'zipcode': zipcode,
@@ -136,7 +136,7 @@ class StripeChecker:
             
             # استخدام البيانات الوهمية + السلة المتغيرة
             payload = {
-                'cartId': CART_ID,  # 👈 استخدام السلة من المتغير
+                'cartId': CART_ID,
                 'billingAddress': {
                     'countryId': 'US',
                     'regionId': '13',
@@ -214,7 +214,6 @@ class StripeChecker:
                 if status == 'R':
                     return 'DECLINED', 'Rejected by issuer'
                 
-                # إذا كانت الحالة C، نفحص الـ Challenge
                 if status == 'C' and 'creq' in auth and 'ares' in auth and 'acsURL' in auth['ares']:
                     try:
                         creq = auth['creq']
@@ -360,75 +359,7 @@ async def check_card(card, bot_app):
             stats['checking'] -= 1
             stats['last_response'] = 'Authenticated ✅'
             await update_dashboard(bot_app)
-            await send_final_files(bot_app)
-    
-    final_text = (
-        "╔═══════════════════╗\n"
-        "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
-        "╚═══════════════════╝\n\n"
-        "✅ تم إرسال جميع الملفات\n"
-        "📊 شكراً لاستخدامك البوت!\n\n"
-        "⚡️ Stripe 3DS Gateway"
-    )
-    
-    await bot_app.bot.send_message(
-        chat_id=stats['chat_id'],
-        text=final_text,
-        parse_mode='Markdown'
-    )
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
-        return
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    
-    if query.from_user.id not in ADMIN_IDS:
-        await query.answer("❌ غير مصرح", show_alert=True)
-        return
-    
-    try:
-        await query.answer()
-    except:
-        pass
-    
-    if query.data == "stop_check":
-        if stats['is_running']:
-            stats['is_running'] = False
-            stats['checking'] = 0
-            stats['last_response'] = 'Stopped 🛑'
-            await update_dashboard(context.application)
-            try:
-                await context.application.bot.send_message(
-                    chat_id=stats['chat_id'],
-                    text="🛑 **تم إيقاف الفحص بواسطة المستخدم!**",
-                    parse_mode='Markdown'
-                )
-            except:
-                pass
-
-def main():
-    print("[🤖] Starting Stripe 3DS Telegram Bot...")
-    print(f"[🛒] Cart ID: {CART_ID}")
-    print("[✅] Bot will send results in chat (no channel)")
-    print("[✅] Using asyncio.create_task (no threading)")
-    print("[✅] Failed Authentication detection enabled")
-    print("[🎲] Random fake data generator enabled")
-    
-    app = Application.builder().token(BOT_TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
-    app.add_handler(CallbackQueryHandler(button_callback))
-    
-    print("[✅] Bot is running...")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()d_result(bot_app, card, "Y", message)
+            await send_result(bot_app, card, "Y", message)
             return card, "Y", message
             
         elif status == 'FAILED_AUTH':
@@ -711,4 +642,72 @@ async def process_cards(cards, bot_app):
         parse_mode='Markdown'
     )
     
-    await sen
+    await send_final_files(bot_app)
+    
+    final_text = (
+        "╔═══════════════════╗\n"
+        "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
+        "╚═══════════════════╝\n\n"
+        "✅ تم إرسال جميع الملفات\n"
+        "📊 شكراً لاستخدامك البوت!\n\n"
+        "⚡️ Stripe 3DS Gateway"
+    )
+    
+    await bot_app.bot.send_message(
+        chat_id=stats['chat_id'],
+        text=final_text,
+        parse_mode='Markdown'
+    )
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
+        return
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    
+    if query.from_user.id not in ADMIN_IDS:
+        await query.answer("❌ غير مصرح", show_alert=True)
+        return
+    
+    try:
+        await query.answer()
+    except:
+        pass
+    
+    if query.data == "stop_check":
+        if stats['is_running']:
+            stats['is_running'] = False
+            stats['checking'] = 0
+            stats['last_response'] = 'Stopped 🛑'
+            await update_dashboard(context.application)
+            try:
+                await context.application.bot.send_message(
+                    chat_id=stats['chat_id'],
+                    text="🛑 **تم إيقاف الفحص بواسطة المستخدم!**",
+                    parse_mode='Markdown'
+                )
+            except:
+                pass
+
+def main():
+    print("[🤖] Starting Stripe 3DS Telegram Bot...")
+    print(f"[🛒] Cart ID: {CART_ID}")
+    print("[✅] Bot will send results in chat (no channel)")
+    print("[✅] Using asyncio.create_task (no threading)")
+    print("[✅] Failed Authentication detection enabled")
+    print("[🎲] Random fake data generator enabled")
+    
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    
+    print("[✅] Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
