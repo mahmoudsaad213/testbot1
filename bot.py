@@ -25,7 +25,7 @@ BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
 ADMIN_IDS = [5895491379, 844663875]
 
 # ========== Cart ID - سيتم تحديثه تلقائياً ==========
-CART_ID = "NCG8D3y6kZ8MmuVNNawOXcCektgKihF7"
+CART_ID = ""
 
 # ========== Cookies - تحديث حسب الحاجة ==========
 COOKIES = {
