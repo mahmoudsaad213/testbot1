@@ -5,6 +5,7 @@ import logging
 import random
 import string
 import time
+import signal
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -19,6 +20,39 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8166484030:AAEcpDe4EIoSRMCFKXQq33scCSiRaEfzAWU"
 ADMIN_IDS = [5895491379, 844663875]
 CART_ID = ""
+PID_FILE = "/tmp/stripe_bot.pid"
+
+def check_single_instance():
+    """التأكد من عدم وجود نسخة أخرى"""
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, 'r') as f:
+                old_pid = int(f.read().strip())
+            
+            try:
+                os.kill(old_pid, 0)
+                logger.error(f"❌ Bot already running (PID: {old_pid})")
+                logger.error("❌ Stop the other instance first!")
+                sys.exit(1)
+            except OSError:
+                os.remove(PID_FILE)
+        except:
+            pass
+    
+    with open(PID_FILE, 'w') as f:
+        f.write(str(os.getpid()))
+    
+    logger.info(f"✅ Single instance check passed (PID: {os.getpid()})")
+
+def cleanup_on_exit(signum=None, frame=None):
+    """تنظيف عند الإغلاق"""
+    if os.path.exists(PID_FILE):
+        os.remove(PID_FILE)
+    logger.info("🛑 Bot stopped - cleanup done")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, cleanup_on_exit)
+signal.signal(signal.SIGTERM, cleanup_on_exit)
 
 COOKIES = {
     'store_switcher_popup_closed': 'closed',
