@@ -189,7 +189,7 @@ stats = {
     'not_auth': 0,
     'unavailable': 0,
     'declined': 0,
-    'rejected': 0,  # ← إضافة عداد للـ R
+    'rejected': 0,
     'errors': 0,
     'cart_refreshed': 0,
     'cart_refresh_failed': 0,
@@ -577,7 +577,7 @@ class StripeChecker:
                 else:
                     return 'DECLINED', f'Status: {pi_status}'
             
-            # ========== الخطوة 5: 3DS2 Authentication - الحل الصحيح 100% ==========
+            # ========== الخطوة 5: 3DS2 Authentication ==========
             logger.info("📝 Step 5: 3DS Authentication")
             
             next_action = pi['next_action']
@@ -598,9 +598,6 @@ class StripeChecker:
             
             logger.info(f"🔐 3DS2 Source: {source[:30]}...")
             logger.info(f"🔐 Transaction ID: {trans_id}")
-            
-            # ========== الحل الموحد لكل أنواع الـ 3DS ==========
-            # سواء كان payatt_ أو src_، نستخدم نفس الـ endpoint
             
             if not source or not trans_id:
                 logger.error("❌ Missing 3DS params")
@@ -665,58 +662,36 @@ class StripeChecker:
             auth = r.json()
             logger.info(f"🔐 3DS Full Response: {json.dumps(auth, indent=2)}")
             
-            # ========== تحليل النتيجة الصحيح 100% ==========
+            # ========== تحليل النتيجة - اعتماد كامل على transStatus فقط! ==========
             
-            # أولاً: التحقق من ares (Authentication Response)
-            if 'ares' in auth:
-                trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
-                logger.info(f"🎯 3DS transStatus: {trans_status}")
-                
-                # ========== الـ Mapping الصحيح ==========
-                status_map = {
-                    'Y': ('Y', '✅ Authenticated - Full verification'),
-                    'C': ('C', '⚠️ Challenge Required'),
-                    'A': ('A', '🔵 Attempted Authentication'),
-                    'N': ('N', '❌ Not Authenticated'),
-                    'U': ('U', '🔴 Unavailable'),
-                    'R': ('R', '❌ Rejected by issuer'),  # ← الإصلاح الرئيسي!
-                }
-                
-                if trans_status in status_map:
-                    result = status_map[trans_status]
-                    logger.info(f"✅ Final Result: {result[0]} - {result[1]}")
-                    return result
-                else:
-                    logger.error(f"❌ Unknown transStatus: {trans_status}")
-                    return ('DECLINED', f'Unknown: {trans_status}')
+            # التحقق من وجود ares object
+            if 'ares' not in auth:
+                logger.error("❌ No ares in response")
+                logger.error(f"Response: {json.dumps(auth, indent=2)}")
+                return 'DECLINED', 'Invalid 3DS response'
             
-            # ثانياً: التحقق من state
-            if 'state' in auth:
-                state = auth.get('state', 'unknown')
-                logger.info(f"📊 State: {state}")
-                
-                if state == 'failed':
-                    # محاولة استخراج السبب من error
-                    if 'error' in auth:
-                        error_msg = auth['error'].get('message', 'Authentication failed')
-                        logger.error(f"❌ Error: {error_msg}")
-                        return 'DECLINED', f'❌ {error_msg[:50]}'
-                    
-                    # إذا لم يكن هناك error، نفترض أنه R
-                    logger.warning("⚠️ State=failed without error, assuming R")
-                    return 'R', '❌ Rejected by issuer (state=failed)'
-                
-                elif state == 'succeeded':
-                    logger.info("✅ State=succeeded")
-                    return 'Y', '✅ Authentication succeeded'
-                
-                else:
-                    logger.warning(f"⚠️ Unknown state: {state}")
-                    return 'DECLINED', f'State: {state}'
+            # استخراج transStatus - هذا هو المهم فقط!
+            trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
+            logger.info(f"🎯 3DS transStatus: {trans_status}")
             
-            # إذا لم نجد ares ولا state
-            logger.error("❌ No ares or state in response")
-            return 'DECLINED', 'Invalid 3DS response'
+            # ========== الـ Mapping الوحيد المعتمد عليه ==========
+            status_map = {
+                'Y': ('Y', '✅ Authenticated - Full verification'),
+                'C': ('C', '⚠️ Challenge Required'),
+                'A': ('A', '🔵 Attempted Authentication'),
+                'N': ('N', '❌ Not Authenticated'),
+                'U': ('U', '🔴 Unavailable'),
+                'R': ('R', '❌ Rejected by issuer'),
+            }
+            
+            if trans_status in status_map:
+                result = status_map[trans_status]
+                logger.info(f"✅ Final Result: {result[0]} - {result[1]}")
+                return result
+            else:
+                logger.error(f"❌ Unknown transStatus: {trans_status}")
+                logger.error(f"Full response: {json.dumps(auth, indent=2)}")
+                return ('DECLINED', f'Unknown status: {trans_status}')
             
         except requests.exceptions.Timeout:
             logger.error("⏱️ Request timeout")
@@ -804,14 +779,14 @@ async def check_card(card, bot_app):
         
         logger.info(f"Result: {status} - {message[:50]}")
         
-        # ========== إضافة R للـ handlers ==========
+        # ========== Status handlers ==========
         status_handlers = {
             'Y': ('authenticated', 'Authenticated ✅'),
             'C': ('challenge', 'Challenge ⚠️'),
             'A': ('attempted', 'Attempted 🔵'),
             'N': ('not_auth', 'Not Auth ❌'),
             'U': ('unavailable', 'Unavailable 🔴'),
-            'R': ('rejected', 'Rejected ❌'),  # ← إضافة R
+            'R': ('rejected', 'Rejected ❌'),
             'DECLINED': ('declined', 'Declined ❌'),
         }
         
@@ -839,7 +814,7 @@ async def check_card(card, bot_app):
         stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
         await update_dashboard(bot_app)
-        return card, "EXCEPTION", str(e)
+        return card, "EXCEPTION", str(e})
 
 def create_dashboard_keyboard():
     elapsed = 0
@@ -864,7 +839,7 @@ def create_dashboard_keyboard():
         ],
         [
             InlineKeyboardButton(f"🔴 U: {stats['unavailable']}", callback_data="unavailable"),
-            InlineKeyboardButton(f"❌ R: {stats['rejected']}", callback_data="rejected")  # ← إضافة R
+            InlineKeyboardButton(f"❌ R: {stats['rejected']}", callback_data="rejected")
         ],
         [
             InlineKeyboardButton(f"❌ Declined: {stats['declined']}", callback_data="declined"),
@@ -894,7 +869,7 @@ async def update_dashboard(bot_app):
             await bot_app.bot.edit_message_text(
                 chat_id=stats['chat_id'],
                 message_id=stats['dashboard_message_id'],
-                text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *Auto Cart Refresh + Fixed R Status*",
+                text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *transStatus Only Detection*",
                 reply_markup=create_dashboard_keyboard(),
                 parse_mode='Markdown'
             )
@@ -939,7 +914,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📊 **STRIPE 3DS CHECKER BOT**\n"
         "🔄 *With Auto Cart Refresh*\n"
-        "✅ *Fixed R Status Detection*\n\n"
+        "✅ *transStatus Only Detection*\n\n"
         "أرسل ملف .txt يحتوي على البطاقات\n"
         "الصيغة: `رقم|شهر|سنة|cvv`\n\n"
         "**الردود المتاحة:**\n"
@@ -952,7 +927,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❌ Declined/Other\n\n"
         "**ميزات:**\n"
         "🔄 تحديث تلقائي للسلة\n"
-        "📊 قراءة صحيحة 100% لحالة R\n"
+        "📊 قراءة من ares.transStatus فقط\n"
         "⚡️ استخدام /v1/3ds2/authenticate",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
@@ -1000,7 +975,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'not_auth': 0,
         'unavailable': 0,
         'declined': 0,
-        'rejected': 0,  # ← إضافة عداد R
+        'rejected': 0,
         'errors': 0,
         'cart_refreshed': 0,
         'cart_refresh_failed': 0,
@@ -1016,7 +991,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
     
     dashboard_msg = await update.message.reply_text(
-        text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *Auto Cart Refresh + Fixed R Status*",
+        text="📊 **STRIPE 3DS CHECKER - LIVE** 📊\n🔄 *transStatus Only Detection*",
         reply_markup=create_dashboard_keyboard(),
         parse_mode='Markdown'
     )
@@ -1055,7 +1030,7 @@ async def process_cards(cards, bot_app):
         if stats['cards_checked'] % 3 == 0:
             await update_dashboard(bot_app)
         
-        await asyncio.sleep(4)  # انتظار 4 ثوان بين البطاقات
+        await asyncio.sleep(4)
     
     logger.info("✅ Processing completed")
     
@@ -1103,8 +1078,8 @@ async def process_cards(cards, bot_app):
         f"❌ تحديثات فاشلة: {stats['cart_refresh_failed']}\n"
         f"🛒 Cart ID النهائي: `{CART_ID}`\n\n"
         "📊 شكراً لاستخدامك البوت!\n"
-        "⚡️ Stripe 3DS Gateway - Fixed R Status\n"
-        "✅ Using /v1/3ds2/authenticate endpoint"
+        "⚡️ Stripe 3DS - transStatus Only\n"
+        "✅ Using /v1/3ds2/authenticate"
     )
     
     await bot_app.bot.send_message(
@@ -1154,7 +1129,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📋 Cart ID:\n`{CART_ID}`\n\n"
             f"🔄 عدد مرات التحديث: {stats['cart_refreshed']}\n"
             f"⚡️ التحديث التلقائي: مُفعّل\n"
-            f"✅ Fixed R Status Detection"
+            f"✅ transStatus Only Detection"
         )
         await query.answer(cart_info_text, show_alert=True)
 
@@ -1166,7 +1141,7 @@ def main():
     logger.info("="*70)
     logger.info("🤖 Starting Stripe 3DS Telegram Bot")
     logger.info("🔄 With Auto Cart Refresh System")
-    logger.info("✅ Fixed R (Rejected) Status Detection")
+    logger.info("✅ transStatus Only Detection")
     logger.info("⚡️ Using /v1/3ds2/authenticate endpoint")
     logger.info("="*70)
     logger.info("✅ Logging enabled")
