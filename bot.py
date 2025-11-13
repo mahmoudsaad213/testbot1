@@ -396,10 +396,29 @@ class StripeChecker:
             logger.error(f"💥 Exception: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            return 'ERROR', str(e)[:50] Authenticated'),
-                'U': ('U', '🔴 Unavailable'),
-                'R': ('R', '❌ Rejected'),
-            }
+            return 'ERROR', str(e)[:50]
+        
+    async def check_3ds(self, source, trans_id):
+        try:
+            logger.info(f"🔐 Source: {source[:30]}...")
+            logger.info(f"🔐 Trans ID: {trans_id}")
+            
+            if not source or not trans_id:
+                logger.error("❌ Missing source or trans_id")
+                return 'DECLINED', 'Missing 3DS'
+            
+            data = f'source={source}&threeDSServerTransID={trans_id}'
+            
+            headers_3ds = self.headers.copy()
+            headers_3ds.update({'content-type': 'application/x-www-form-urlencoded', 'origin': 'https://js.stripe.com', 'referer': 'https://js.stripe.com/'})
+            
+            logger.info("🔐 Calling 3DS check...")
+            
+            r = self.session.post('https://api.stripe.com/v1/3ds2/check', headers=headers_3ds, data=data, timeout=25)
+            
+            logger.info(f"✅ 3DS Check Status: {r.status_code}")
+            logger.info(f"📄 3DS Response: {r.text[:500]}")
+            
             
             if trans_status in status_map:
                 return status_map[trans_status]
