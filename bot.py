@@ -23,16 +23,13 @@ CART_ID = ""
 PID_FILE = "/tmp/stripe_bot.pid"
 
 def check_single_instance():
-    """التأكد من عدم وجود نسخة أخرى"""
     if os.path.exists(PID_FILE):
         try:
             with open(PID_FILE, 'r') as f:
                 old_pid = int(f.read().strip())
-            
             try:
                 os.kill(old_pid, 0)
                 logger.error(f"❌ Bot already running (PID: {old_pid})")
-                logger.error("❌ Stop the other instance first!")
                 sys.exit(1)
             except OSError:
                 os.remove(PID_FILE)
@@ -41,14 +38,12 @@ def check_single_instance():
     
     with open(PID_FILE, 'w') as f:
         f.write(str(os.getpid()))
-    
-    logger.info(f"✅ Single instance check passed (PID: {os.getpid()})")
+    logger.info(f"✅ Single instance (PID: {os.getpid()})")
 
 def cleanup_on_exit(signum=None, frame=None):
-    """تنظيف عند الإغلاق"""
     if os.path.exists(PID_FILE):
         os.remove(PID_FILE)
-    logger.info("🛑 Bot stopped - cleanup done")
+    logger.info("🛑 Cleanup done")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, cleanup_on_exit)
@@ -362,7 +357,7 @@ class StripeChecker:
             auth = r.json()
             
             if 'ares' not in auth:
-                logger.error(f"❌ No ares in auth response!")
+                logger.error("❌ No ares in auth response!")
                 logger.error(f"Full response: {json.dumps(auth, indent=2)}")
                 return 'DECLINED', 'Invalid 3DS'
             
@@ -370,12 +365,12 @@ class StripeChecker:
             logger.info(f"🎯 transStatus: {trans_status}")
             
             status_map = {
-                'Y': ('Y', '✅ Authenticated'),
-                'C': ('C', '⚠️ Challenge Required'),
-                'A': ('A', '🔵 Attempted'),
-                'N': ('N', '❌ Not Authenticated'),
-                'U': ('U', '🔴 Unavailable'),
-                'R': ('R', '❌ Rejected'),
+                'Y': ('Y', 'Authenticated'),
+                'C': ('C', 'Challenge Required'),
+                'A': ('A', 'Attempted'),
+                'N': ('N', 'Not Authenticated'),
+                'U': ('U', 'Unavailable'),
+                'R': ('R', 'Rejected'),
             }
             
             if trans_status in status_map:
@@ -396,39 +391,6 @@ class StripeChecker:
             logger.error(f"💥 Exception: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            return 'ERROR', str(e)[:50]
-        
-    async def check_3ds(self, source, trans_id):
-        try:
-            logger.info(f"🔐 Source: {source[:30]}...")
-            logger.info(f"🔐 Trans ID: {trans_id}")
-            
-            if not source or not trans_id:
-                logger.error("❌ Missing source or trans_id")
-                return 'DECLINED', 'Missing 3DS'
-            
-            data = f'source={source}&threeDSServerTransID={trans_id}'
-            
-            headers_3ds = self.headers.copy()
-            headers_3ds.update({'content-type': 'application/x-www-form-urlencoded', 'origin': 'https://js.stripe.com', 'referer': 'https://js.stripe.com/'})
-            
-            logger.info("🔐 Calling 3DS check...")
-            
-            r = self.session.post('https://api.stripe.com/v1/3ds2/check', headers=headers_3ds, data=data, timeout=25)
-            
-            logger.info(f"✅ 3DS Check Status: {r.status_code}")
-            logger.info(f"📄 3DS Response: {r.text[:500]}")
-            
-            
-            if trans_status in status_map:
-                return status_map[trans_status]
-            return ('DECLINED', f'Unknown: {trans_status}')
-            
-        except requests.exceptions.Timeout:
-            return 'ERROR', 'Timeout'
-        except requests.exceptions.ConnectionError:
-            return 'ERROR', 'Connection failed'
-        except Exception as e:
             return 'ERROR', str(e)[:50]
 
 async def send_result(bot_app, card, status_type, message):
