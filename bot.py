@@ -814,7 +814,7 @@ async def check_card(card, bot_app):
         stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
         await update_dashboard(bot_app)
-        return card, "EXCEPTION", str(e})
+        return card, "EXCEPTION", str(e)
 
 def create_dashboard_keyboard():
     elapsed = 0
