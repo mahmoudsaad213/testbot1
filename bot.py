@@ -580,7 +580,13 @@ def main():
     logger.info("✅ Bot running")
     logger.info("="*50)
     
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    try:
+        app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, close_loop=False)
+    except Exception as e:
+        if "Conflict" in str(e):
+            logger.error("❌ Bot already running elsewhere! Stop other instances first.")
+        else:
+            raise
 
 if __name__ == "__main__":
     try:
