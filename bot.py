@@ -111,7 +111,7 @@ class StripeChecker:
             })
             
             # استخدام cart ID ديناميكي (يمكن تحديثه)
-            cart_id = 'lYVhhw5uAvPgnV4zY2e20AzW3AmSujgU'
+            cart_id = 'Sq7ijc1vhdeZQlCmuWQK3yD8CHIVVgP9'
             
             payload = {
                 'cartId': cart_id,
