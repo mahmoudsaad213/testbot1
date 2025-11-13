@@ -64,7 +64,7 @@ class StripeChecker:
                 f'billing_details[address][country]=UA&'
                 f'billing_details[address][city]=Napoleon&'
                 f'billing_details[address][line1]=111+North+Street&'
-                f'billing_details[email]=test@example.com&'
+                f'billing_details[email]=test36222@gmail.com&'
                 f'billing_details[name]=Card+Test&'
                 f'billing_details[phone]=3609998856&'
                 f'type=card&'
@@ -133,7 +133,7 @@ class StripeChecker:
                     'additional_data': {'payment_method': pm_id},
                     'extension_attributes': {'agreement_ids': []},
                 },
-                'email': 'test@example.com',
+                'email': 'test36222@gmail.com',
             }
             
             r = self.session.post(
