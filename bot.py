@@ -903,7 +903,7 @@ async def process_cards(cards, bot_app):
         if stats['cards_checked'] % 3 == 0:
             await update_dashboard(bot_app)
         
-        await asyncio.sleep(4)  # انتظار 4 ثوان بين البطاقات
+        # await asyncio.sleep(4)  # انتظار 4 ثوان بين البطاقات
     
     logger.info("✅ Processing completed")
     
