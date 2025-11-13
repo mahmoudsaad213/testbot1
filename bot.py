@@ -44,7 +44,6 @@ COOKIES = {
     'mage-cache-storage': '{}',
     'mage-cache-storage-section-invalidation': '{}',
     'mage-cache-sessid': 'true',
-    'mage-messages': '',
     'recently_viewed_product': '{}',
     'recently_viewed_product_previous': '{}',
     'recently_compared_product': '{}',
@@ -53,14 +52,15 @@ COOKIES = {
     'form_key': 'zm3VIr7fkHHjLXLQ',
     '__stripe_sid': 'dcdc4def-0068-4228-9a2f-5faebdd7686171d9e5',
     '_gcl_au': '1.1.515112964.1762996300.1119838397.1763011991.1763011990',
-    'private_content_version': 'fac2e29f5d31e3ed7dc65862bf579349',
-    '_ga_PGSR3N5SW9': 'GS2.1.s1763009923$o4$g1$t1763012726$j58$l1$h511979174',
+    'mage-messages': '',
+    '_ga_PGSR3N5SW9': 'GS2.1.s1763009923$o4$g1$t1763014172$j48$l0$h511979174',
+    'sociallogin_referer_store': 'https://www.ironmongeryworld.com/door-hardware',
     '_uetsid': '464c7840becf11f08903dfcb43b5c71c',
     '_uetvid': '464c81c0becf11f08a53418e9d7cada4',
-    'sociallogin_referer_store': 'https://www.ironmongeryworld.com/checkout/cart/',
     'TawkConnectionTime': '0',
-    'twk_uuid_62308ea51ffac05b1d7eb157': '%7B%22uuid%22%3A%221.AGJiGUpszpgFyK1fuLzv7ux73zcIxiPU5UywW1HN5uhgsjjnWh4i9F0OMR4T9BhpDPR4USYpzwLAzPRNrpLIjIpoKvc0t7P14AaYhdeCxg6BfbbW1XjgRdrynUXBNBBP%22%2C%22version%22%3A3%2C%22domain%22%3A%22ironmongeryworld.com%22%2C%22ts%22%3A1763012729902%7D',
-    'section_data_ids': '{%22customer%22:1763012730%2C%22compare-products%22:1763012730%2C%22last-ordered-items%22:1763012730%2C%22cart%22:1763012730%2C%22directory-data%22:1763012730%2C%22captcha%22:1763012730%2C%22instant-purchase%22:1763012730%2C%22loggedAsCustomer%22:1763012730%2C%22persistent%22:1763012730%2C%22review%22:1763012730%2C%22wishlist%22:1763012730%2C%22gtm%22:1763012730%2C%22wp_confirmation_popup%22:1763012730%2C%22recently_viewed_product%22:1763012730%2C%22recently_compared_product%22:1763012730%2C%22product_data_storage%22:1763012730%2C%22paypal-billing-agreement%22:1763012730}',
+    'twk_uuid_62308ea51ffac05b1d7eb157': '%7B%22uuid%22%3A%221.AGJiGUpszpgFyK1fuLzv7ux73zcIxiPU5UywW1HN5uhgsjjnWh4i9F0OMR4T9BhpDPR4USYpzwLAzPRNrpLIjIpoKvc0t7P14AaYhdeCxg6BfbbW1XjgRdrynUXBNBBP%22%2C%22version%22%3A3%2C%22domain%22%3A%22ironmongeryworld.com%22%2C%22ts%22%3A1763014175096%7D',
+    'private_content_version': '14154d8930b9796c710c5a0e75648fd0',
+    'section_data_ids': '{%22customer%22:1763014174%2C%22compare-products%22:1763014174%2C%22last-ordered-items%22:1763014174%2C%22cart%22:1763014178%2C%22directory-data%22:1763014177%2C%22captcha%22:1763014174%2C%22instant-purchase%22:1763014174%2C%22loggedAsCustomer%22:1763014174%2C%22persistent%22:1763014174%2C%22review%22:1763014174%2C%22wishlist%22:1763014174%2C%22gtm%22:1763014177%2C%22wp_confirmation_popup%22:1763014177%2C%22recently_viewed_product%22:1763014174%2C%22recently_compared_product%22:1763014174%2C%22product_data_storage%22:1763014174%2C%22paypal-billing-agreement%22:1763014174}',
 
 }
 
