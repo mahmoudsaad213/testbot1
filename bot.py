@@ -109,50 +109,263 @@ class CardChecker:
         """
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove script and style tags before analysis
+            for script in soup(["script", "style"]):
+                script.decompose()
+            
             text_content = soup.get_text().lower()
             
-            # ========== PRIORITY 1: CHECK HTML STRUCTURE FOR ERROR FORMS ==========
-            # Check for error forms (highest priority)
+            # ========== PRIORITY 1: CHECK FOR OTP SUCCESS INDICATORS FIRST ==========
+            # Strong success patterns (highest priority)
+            strong_success_patterns = [
+                r"send\s+otp",
+                r"request\s+otp",
+                r"get\s+otp",
+                r"mobile\s+number\s+\#",
+                r"registered\s+mobile",
+                r"select.*to\s+receive.*otp",
+                r"one[\s-]time\s+password.*via",
+                r"protecting\s+your\s+online\s+payments",
+            ]
+            
+            for pattern in strong_success_patterns:
+                if re.search(pattern, text_content, re.IGNORECASE):
+                    return True, 'OTP_SUCCESS', "✅ OTP request page detected"
+            
+            # ========== PRIORITY 2: CHECK HTML STRUCTURE FOR ERROR FORMS ==========
+            # Check for visible error forms
             error_forms = soup.find_all('form', id=re.compile(r'error', re.I))
-            if error_forms:
-                for form in error_forms:
-                    if form.get('style', '').lower() != 'display:none' and 'display: none' not in form.get('style', '').lower():
+            for form in error_forms:
+                form_style = form.get('style', '').lower()
+                # Only flag if form is NOT hidden
+                if 'display:none' not in form_style.replace(' ', '') and 'display: none' not in form_style:
+                    # Double check: is it really shown?
+                    parent = form.parent
+                    is_hidden = False
+                    while parent and parent.name != 'body':
+                        parent_style = parent.get('style', '').lower()
+                        if 'display:none' in parent_style.replace(' ', '') or 'display: none' in parent_style:
+                            is_hidden = True
+                            break
+                        parent = parent.parent
+                    
+                    if not is_hidden:
                         return False, 'OTP_FAILED', "❌ Error form detected"
             
-            # Check for transaction failure divs
-            error_divs = soup.find_all('div', class_=re.compile(r'error|failure|txnError', re.I))
+            # Check for transaction failure divs (visible ones only)
+            error_divs = soup.find_all('div', class_=re.compile(r'txnError|transaction.*error', re.I))
             for div in error_divs:
-                if div.get('style', '').lower() != 'display:none' and 'display: none' not in div.get('style', '').lower():
+                div_style = div.get('style', '').lower()
+                if 'display:none' not in div_style.replace(' ', '') and 'display: none' not in div_style:
                     h2_tags = div.find_all('h2')
                     for h2 in h2_tags:
                         h2_text = h2.get_text().strip()
-                        if h2_text and len(h2_text) > 0:
+                        if h2_text and len(h2_text) > 5:
                             return False, 'OTP_FAILED', f"❌ {h2_text}"
             
-            # Check for error headers (h1, h2, h3)
+            # ========== PRIORITY 3: CHECK FOR VISIBLE ERROR HEADERS ==========
             error_headers = soup.find_all(['h1', 'h2', 'h3'])
             for header in error_headers:
                 header_text = header.get_text().strip().lower()
-                if any(word in header_text for word in ['sorry', 'error', 'wrong', 'failed', 'cannot', "can't", 'unable']):
-                    # Make sure it's visible
-                    parent_style = ''
+                
+                # Skip if header is part of FAQ or footer content
+                if any(word in header_text for word in ['frequently asked', 'faq', 'terms and conditions', 'need help']):
+                    continue
+                
+                # Only flag specific critical error messages
+                critical_header_phrases = [
+                    'sorry, something went wrong',
+                    "can't complete this transaction",
+                    'transaction failed',
+                    'payment declined',
+                    'card declined',
+                    'authentication failed'
+                ]
+                
+                if any(phrase in header_text for phrase in critical_header_phrases):
+                    # Check if visible
                     parent = header.parent
+                    is_visible = True
                     while parent and parent.name != 'body':
-                        parent_style += parent.get('style', '')
+                        parent_style = parent.get('style', '').lower()
                         if 'display:none' in parent_style.replace(' ', '') or 'display: none' in parent_style:
+                            is_visible = False
                             break
                         parent = parent.parent
-                    else:
+                    
+                    if is_visible:
                         return False, 'OTP_FAILED', f"❌ {header.get_text().strip()}"
             
-            # ========== PRIORITY 2: CRITICAL FAILURE PATTERNS (OTP FAILED) ==========
+            # ========== PRIORITY 4: CRITICAL FAILURE PATTERNS (TEXT ONLY) ==========
             critical_failures = [
-                # Transaction errors
-                (r"can'?t\s+complete\s+this\s+transaction", "Can't complete this transaction"),
-                (r"cannot\s+complete\s+this\s+transaction", "Cannot complete this transaction"),
-                (r"unable\s+to\s+complete", "Unable to complete transaction"),
-                (r"transaction\s+(was\s+)?declined", "Transaction declined"),
-                (r"payment\s+(was\s+)?declined", "Payment declined"),
+                # Transaction errors (very specific)
+                (r"we\s+can'?t\s+complete\s+this\s+transaction", "Can't complete transaction"),
+                (r"unable\s+to\s+complete\s+(this\s+)?transaction", "Unable to complete transaction"),
+                (r"transaction\s+has\s+been\s+declined", "Transaction declined"),
+                (r"payment\s+has\s+been\s+declined", "Payment declined"),
+                
+                # Card issues
+                (r"your\s+card\s+(was\s+)?declined", "Card declined"),
+                (r"card\s+is\s+not\s+supported", "Card not supported"),
+                (r"invalid\s+card\s+details", "Invalid card"),
+                (r"card\s+has\s+expired", "Card expired"),
+                
+                # CVV/Security
+                (r"incorrect\s+cvv", "Incorrect CVV"),
+                (r"invalid\s+security\s+code", "Invalid security code"),
+                
+                # Funds
+                (r"insufficient\s+funds", "Insufficient funds"),
+                (r"balance\s+too\s+low", "Balance too low"),
+                
+                # Processing errors (specific)
+                (r"error\s+processing\s+your\s+payment", "Payment processing error"),
+                (r"payment\s+could\s+not\s+be\s+processed", "Payment not processed"),
+                
+                # Bank issues
+                (r"please\s+contact\s+your\s+bank", "Contact your bank"),
+                (r"bank\s+has\s+declined", "Bank declined"),
+                (r"issuer\s+declined\s+transaction", "Issuer declined"),
+                
+                # Authentication failures
+                (r"authentication\s+failed", "Authentication failed"),
+                (r"verification\s+failed", "Verification failed"),
+                
+                # Limits
+                (r"transaction\s+limit\s+exceeded", "Limit exceeded"),
+                
+                # Security blocks
+                (r"blocked\s+for\s+security\s+reasons", "Blocked for security"),
+            ]
+            
+            for pattern, message in critical_failures:
+                if re.search(pattern, text_content, re.IGNORECASE):
+                    return False, 'OTP_FAILED', f"❌ {message}"
+            
+            # ========== PRIORITY 5: SUCCESS PATTERNS (OTP SENT) ==========
+            success_patterns = [
+                # Code entry requests
+                (r"enter\s+(the\s+)?code", "Enter verification code"),
+                (r"enter\s+your\s+secure\s+code", "Enter secure code"),
+                (r"enter\s+\d+[\s-]?digit\s+code", "Enter digit code"),
+                (r"type\s+the\s+code", "Type the code"),
+                (r"input\s+verification\s+code", "Input verification code"),
+                
+                # Code sent confirmations
+                (r"verification\s+code\s+sent", "✅ Verification code sent"),
+                (r"code\s+has\s+been\s+sent", "✅ Code sent successfully"),
+                (r"we'?ve?\s+sent\s+a\s+code", "✅ Code sent to you"),
+                (r"code\s+sent\s+to\s+your", "✅ Code delivered"),
+                
+                # Check device instructions
+                (r"check\s+your\s+phone\s+for", "✅ Check your phone"),
+                (r"check\s+your\s+mobile", "✅ Check your mobile"),
+                (r"check\s+your\s+email\s+for", "✅ Check your email"),
+                (r"check\s+your\s+messages", "✅ Check messages"),
+                
+                # Authentication requests
+                (r"authentication\s+required", "Authentication required"),
+                (r"additional\s+verification\s+required", "Additional verification"),
+                
+                # OTP specific
+                (r"one[\s-]time\s+password", "OTP required"),
+                (r"enter\s+otp", "Enter OTP"),
+                
+                # SMS/Email confirmations
+                (r"sms\s+sent", "✅ SMS sent"),
+                (r"text\s+message\s+sent", "✅ Text sent"),
+            ]
+            
+            for pattern, message in success_patterns:
+                if re.search(pattern, text_content, re.IGNORECASE):
+                    return True, 'OTP_SUCCESS', f"✅ {message}"
+            
+            # ========== PRIORITY 6: CHECK FOR VISIBLE INPUT FIELDS ==========
+            input_fields = soup.find_all('input', {'type': ['text', 'tel', 'number']})
+            
+            for field in input_fields:
+                # Check field visibility
+                field_style = field.get('style', '').lower()
+                if 'display:none' in field_style.replace(' ', ''):
+                    continue
+                
+                # Check parent visibility
+                parent = field.parent
+                is_visible = True
+                while parent and parent.name != 'body':
+                    parent_style = parent.get('style', '').lower()
+                    if 'display:none' in parent_style.replace(' ', ''):
+                        is_visible = False
+                        break
+                    parent = parent.parent
+                
+                if not is_visible:
+                    continue
+                
+                field_attrs = ' '.join([
+                    field.get('name', ''),
+                    field.get('id', ''),
+                    field.get('placeholder', ''),
+                    str(field.get('class', ''))
+                ]).lower()
+                
+                otp_indicators = ['otp', 'code', 'verification', 'verify', 'secure', 'auth', 
+                                 'text_input', 'text-input', 'pin']
+                
+                if any(indicator in field_attrs for indicator in otp_indicators):
+                    return True, 'OTP_SUCCESS', "✅ OTP input field detected"
+            
+            # ========== PRIORITY 7: CHECK FOR VERIFY BUTTONS IN NON-ERROR FORMS ==========
+            verify_buttons = soup.find_all(['button', 'input'], {'type': ['submit', 'button']})
+            for btn in verify_buttons:
+                # Check button visibility
+                btn_style = btn.get('style', '').lower()
+                if 'display:none' in btn_style.replace(' ', ''):
+                    continue
+                
+                btn_text = ' '.join([
+                    btn.get_text(),
+                    btn.get('value', ''),
+                    btn.get('title', '')
+                ]).lower()
+                
+                # Check for OTP-related buttons
+                if any(word in btn_text for word in ['send otp', 'request otp', 'get otp', 'verify', 'next', 'submit']):
+                    # Make sure not in error form
+                    parent = btn.parent
+                    in_error_form = False
+                    while parent and parent.name != 'body':
+                        if parent.name == 'form':
+                            form_id = parent.get('id', '').lower()
+                            if 'error' in form_id:
+                                in_error_form = True
+                                break
+                        parent = parent.parent
+                    
+                    if not in_error_form and 'send otp' in btn_text:
+                        return True, 'OTP_SUCCESS', "✅ OTP request form detected"
+                    elif not in_error_form and any(word in btn_text for word in ['verify', 'submit', 'next']):
+                        return True, 'OTP_SUCCESS', "✅ Verification form detected"
+            
+            # ========== PRIORITY 8: CHECK FOR RADIO BUTTONS (MOBILE NUMBER SELECTION) ==========
+            radio_inputs = soup.find_all('input', {'type': 'radio'})
+            for radio in radio_inputs:
+                # Get label text
+                label = radio.find_parent('label')
+                if label:
+                    label_text = label.get_text().lower()
+                    if 'mobile number' in label_text and '#' in label_text:
+                        return True, 'OTP_SUCCESS', "✅ Mobile number selection detected"
+            
+            # ========== FINAL: AMBIGUOUS RESPONSES ==========
+            if 'loading' in text_content or 'please wait' in text_content:
+                return None, 'UNCLEAR', "⏳ Loading response"
+            
+            return None, 'UNCLEAR', "❓ Response unclear"
+            
+        except Exception as e:
+            return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"
                 
                 # Card issues
                 (r"card\s+(was\s+)?declined", "Card declined"),
