@@ -106,8 +106,8 @@ class CardChecker:
             'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive'
         })
-        # Reduce timeout for faster responses
-        self.timeout = 10
+        # Balanced timeout - not too short, not too long
+        self.timeout = 20
     
     def analyze_3ds_response(self, html_content):
         """
@@ -375,7 +375,7 @@ class CardChecker:
             
         except Exception as e:
             return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"
-            [
+                
                 # Card issues
                 (r"card\s+(was\s+)?declined", "Card declined"),
                 (r"card\s+not\s+supported", "Card not supported"),
@@ -701,7 +701,7 @@ class CardChecker:
                         method_url,
                         data={'threeDSMethodData': encoded_method_data},
                         headers={'Content-Type': 'application/x-www-form-urlencoded'},
-                        timeout=8
+                        timeout=15
                     )
                     if method_response.status_code == 200:
                         method_completion_indicator = 'Y'
@@ -712,8 +712,8 @@ class CardChecker:
                     method_completion_indicator = 'U'
                     debug_log.append(f"Step 4: Method Error: {str(e)[:50]}")
                 
-                # Reduced sleep time
-                time.sleep(0.5)
+                # Reduced sleep time but not too short
+                time.sleep(1)
             
             # Step 5: Send card data
             full_card_data = {
@@ -1144,8 +1144,8 @@ async def process_cards(cards, bot_app, user_id):
         if stats['cards_checked'] % 10 == 0 or stats['cards_checked'] == total_cards:
             await update_dashboard(bot_app, user_id)
         
-        # Reduced delay between batches
-        await asyncio.sleep(0.3)
+        # Small delay between batches to avoid overwhelming server
+        await asyncio.sleep(0.5)
     
     stats['is_running'] = False
     stats['checking'] = 0
