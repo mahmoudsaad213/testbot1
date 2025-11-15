@@ -375,7 +375,7 @@ class CardChecker:
             
         except Exception as e:
             return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"
-        [    
+            [
                 # Card issues
                 (r"card\s+(was\s+)?declined", "Card declined"),
                 (r"card\s+not\s+supported", "Card not supported"),
@@ -446,9 +446,9 @@ class CardChecker:
                 (r"fraud\s+prevention", "Fraud prevention triggered"),
             ]
             
-        for pattern, message in critical_failures:
-            if re.search(pattern, text_content, re.IGNORECASE):
-             return False, 'OTP_FAILED', f"❌ {message}"
+            for pattern, message in critical_failures:
+                if re.search(pattern, text_content, re.IGNORECASE):
+                    return False, 'OTP_FAILED', f"❌ {message}"
             
             # ========== PRIORITY 3: SUCCESS PATTERNS (OTP SENT) ==========
             # Only check success if NO error keywords found
@@ -571,26 +571,19 @@ class CardChecker:
                         if not in_error_form:
                             return True, 'OTP_SUCCESS', "✅ Verification form detected"
             
-# ========== PRIORITY 6: AMBIGUOUS RESPONSES ========== 
-
-try:
-    # ========== PRIORITY 6: AMBIGUOUS RESPONSES ========== 
-
-    # Check if the response contains keywords indicating a loading state
-    if 'loading' in text_content or 'please wait' in text_content:
-        return None, 'UNCLEAR', "⏳ Loading response"  # In case of loading, we return unclear
-
-    # If error-related keywords are detected, handle failure
-    if has_error_keyword:
-        return False, 'OTP_FAILED', "❌ Error detected in response"  # OTP failure detected
-
-    # If no specific error is detected, but the response is unclear, mark it as unclear
-    return None, 'UNCLEAR', "❓ Response unclear"
-
-except Exception as e:
-    # Handle any unexpected exceptions during the analysis process
-    return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"  # Return an error message with part of the exception description
-
+            # ========== PRIORITY 6: AMBIGUOUS RESPONSES ==========
+            if 'loading' in text_content or 'please wait' in text_content:
+                return None, 'UNCLEAR', "⏳ Loading response"
+            
+            # If we reach here with error keywords, it's likely a failure
+            if has_error_keyword:
+                return False, 'OTP_FAILED', "❌ Error detected in response"
+            
+            return None, 'UNCLEAR', "❓ Response unclear"
+            
+        except Exception as e:
+            return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"
+        
     def check(self, card_line):
         """Check a single card"""
         debug_log = []
