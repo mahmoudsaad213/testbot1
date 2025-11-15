@@ -111,11 +111,45 @@ class CardChecker:
             soup = BeautifulSoup(html_content, 'html.parser')
             text_content = soup.get_text().lower()
             
-            # ========== CRITICAL FAILURE PATTERNS (OTP FAILED) ==========
+            # ========== PRIORITY 1: CHECK HTML STRUCTURE FOR ERROR FORMS ==========
+            # Check for error forms (highest priority)
+            error_forms = soup.find_all('form', id=re.compile(r'error', re.I))
+            if error_forms:
+                for form in error_forms:
+                    if form.get('style', '').lower() != 'display:none' and 'display: none' not in form.get('style', '').lower():
+                        return False, 'OTP_FAILED', "❌ Error form detected"
+            
+            # Check for transaction failure divs
+            error_divs = soup.find_all('div', class_=re.compile(r'error|failure|txnError', re.I))
+            for div in error_divs:
+                if div.get('style', '').lower() != 'display:none' and 'display: none' not in div.get('style', '').lower():
+                    h2_tags = div.find_all('h2')
+                    for h2 in h2_tags:
+                        h2_text = h2.get_text().strip()
+                        if h2_text and len(h2_text) > 0:
+                            return False, 'OTP_FAILED', f"❌ {h2_text}"
+            
+            # Check for error headers (h1, h2, h3)
+            error_headers = soup.find_all(['h1', 'h2', 'h3'])
+            for header in error_headers:
+                header_text = header.get_text().strip().lower()
+                if any(word in header_text for word in ['sorry', 'error', 'wrong', 'failed', 'cannot', "can't", 'unable']):
+                    # Make sure it's visible
+                    parent_style = ''
+                    parent = header.parent
+                    while parent and parent.name != 'body':
+                        parent_style += parent.get('style', '')
+                        if 'display:none' in parent_style.replace(' ', '') or 'display: none' in parent_style:
+                            break
+                        parent = parent.parent
+                    else:
+                        return False, 'OTP_FAILED', f"❌ {header.get_text().strip()}"
+            
+            # ========== PRIORITY 2: CRITICAL FAILURE PATTERNS (OTP FAILED) ==========
             critical_failures = [
                 # Transaction errors
-                (r"can'?t\s+complete\s+this\s+transaction", "Transaction cannot be completed"),
-                (r"cannot\s+complete\s+this\s+transaction", "Transaction cannot be completed"),
+                (r"can'?t\s+complete\s+this\s+transaction", "Can't complete this transaction"),
+                (r"cannot\s+complete\s+this\s+transaction", "Cannot complete this transaction"),
                 (r"unable\s+to\s+complete", "Unable to complete transaction"),
                 (r"transaction\s+(was\s+)?declined", "Transaction declined"),
                 (r"payment\s+(was\s+)?declined", "Payment declined"),
@@ -143,23 +177,28 @@ class CardChecker:
                 (r"processing\s+failed", "Processing failed"),
                 (r"transaction\s+failed", "Transaction failed"),
                 
-                # Generic errors
+                # Generic errors - MORE SPECIFIC PATTERNS
                 (r"sorry,?\s+something\s+went\s+wrong", "Something went wrong"),
+                (r"sorry\s+we\s+.*\s+complete", "Unable to complete"),
                 (r"an\s+error\s+occurred", "An error occurred"),
-                (r"technical\s+error", "Technical error"),
-                (r"system\s+error", "System error"),
+                (r"technical\s+(issue|error|problem)", "Technical error"),
+                (r"system\s+(error|issue|failure)", "System error"),
                 (r"try\s+again\s+later", "Service unavailable"),
+                (r"please\s+try\s+again", "Please try again"),
                 
                 # Authentication failures
                 (r"authentication\s+failed", "Authentication failed"),
                 (r"verification\s+failed", "Verification failed"),
-                (r"could\s+not\s+verify", "Could not verify card"),
+                (r"could\s+not\s+(verify|authenticate)", "Could not verify card"),
+                (r"unable\s+to\s+(verify|authenticate)", "Unable to authenticate"),
                 
                 # Bank/Issuer issues
                 (r"contact\s+(your\s+)?bank", "Contact your bank"),
+                (r"call\s+(your\s+)?bank", "Call your bank"),
                 (r"issuer\s+declined", "Issuer declined"),
                 (r"bank\s+declined", "Bank declined"),
                 (r"not\s+authorized", "Not authorized by bank"),
+                (r"authorization\s+failed", "Authorization failed"),
                 
                 # Limit issues
                 (r"limit\s+exceeded", "Limit exceeded"),
@@ -170,69 +209,103 @@ class CardChecker:
                 (r"not\s+available\s+in\s+(your\s+)?country", "Not available in your country"),
                 (r"geographic\s+restriction", "Geographic restriction"),
                 (r"region\s+not\s+supported", "Region not supported"),
+                
+                # Specific merchant/gateway errors
+                (r"merchant\s+(not\s+available|error)", "Merchant error"),
+                (r"gateway\s+(error|timeout)", "Gateway error"),
+                
+                # Session/timeout errors
+                (r"session\s+(expired|timeout)", "Session expired"),
+                (r"time\s+out", "Request timeout"),
+                
+                # Risk/fraud blocks
+                (r"blocked\s+for\s+security", "Blocked for security"),
+                (r"suspicious\s+activity", "Suspicious activity detected"),
+                (r"fraud\s+prevention", "Fraud prevention triggered"),
             ]
             
             for pattern, message in critical_failures:
                 if re.search(pattern, text_content, re.IGNORECASE):
                     return False, 'OTP_FAILED', f"❌ {message}"
             
-            # ========== SUCCESS PATTERNS (OTP SENT) ==========
-            success_patterns = [
-                # Code entry requests
-                (r"enter\s+(the\s+)?code", "Enter verification code"),
-                (r"enter\s+(your\s+)?secure\s+code", "Enter secure code"),
-                (r"enter\s+(the\s+)?\d+[\s-]?digit\s+code", "Enter digit code"),
-                (r"type\s+(the\s+)?code", "Type the code"),
-                (r"input\s+(the\s+)?code", "Input verification code"),
-                (r"provide\s+(the\s+)?code", "Provide the code"),
-                
-                # Code sent confirmations
-                (r"verification\s+code\s+(has\s+been\s+)?sent", "✅ Verification code sent"),
-                (r"code\s+(has\s+been\s+)?sent", "✅ Code sent successfully"),
-                (r"we'?ve?\s+sent\s+(a\s+)?code", "✅ Code sent to you"),
-                (r"sent\s+(you\s+)?a\s+code", "✅ Code delivered"),
-                (r"code\s+sent\s+to", "✅ Code sent to device"),
-                
-                # Check device instructions
-                (r"check\s+your\s+phone", "✅ Check your phone"),
-                (r"check\s+your\s+(mobile\s+)?device", "✅ Check your device"),
-                (r"check\s+your\s+email", "✅ Check your email"),
-                (r"check\s+your\s+(text\s+)?messages", "✅ Check your messages"),
-                (r"look\s+for\s+(a\s+)?code", "✅ Look for code"),
-                
-                # Authentication requests
-                (r"authentication\s+code", "Enter authentication code"),
-                (r"security\s+code", "Enter security code"),
-                (r"confirm\s+(your\s+)?identity", "Confirm your identity"),
-                (r"verify\s+(your\s+)?identity", "Verify identity"),
-                (r"additional\s+verification", "Additional verification required"),
-                
-                # OTP specific
-                (r"one[\s-]?time\s+password", "OTP required"),
-                (r"otp\s+code", "OTP code required"),
-                (r"enter\s+otp", "Enter OTP"),
-                
-                # SMS/Email references
-                (r"sms\s+(code|message)", "✅ SMS code sent"),
-                (r"text\s+message\s+code", "✅ Text message sent"),
-                (r"email\s+(with\s+)?code", "✅ Email code sent"),
-                
-                # Challenge completion
-                (r"complete\s+(the\s+)?verification", "Complete verification"),
-                (r"finish\s+(the\s+)?authentication", "Finish authentication"),
-                (r"continue\s+(with\s+)?verification", "Continue verification"),
-            ]
+            # ========== PRIORITY 3: SUCCESS PATTERNS (OTP SENT) ==========
+            # Only check success if NO error keywords found
+            error_keywords = ['sorry', "can't", 'cannot', 'unable', 'failed', 'error', 'declined', 'wrong', 'invalid']
+            has_error_keyword = any(keyword in text_content for keyword in error_keywords)
             
-            for pattern, message in success_patterns:
-                if re.search(pattern, text_content, re.IGNORECASE):
-                    return True, 'OTP_SUCCESS', f"✅ {message}"
-            
-            # ========== CHECK FOR INPUT FIELDS (OTP SUCCESS) ==========
-            # Only check if no failure keywords found
-            if not any(word in text_content for word in ['sorry', 'error', 'failed', 'declined', 'wrong']):
+            if not has_error_keyword:
+                success_patterns = [
+                    # Code entry requests
+                    (r"enter\s+(the\s+)?code", "Enter verification code"),
+                    (r"enter\s+(your\s+)?secure\s+code", "Enter secure code"),
+                    (r"enter\s+(the\s+)?\d+[\s-]?digit\s+code", "Enter digit code"),
+                    (r"type\s+(the\s+)?code", "Type the code"),
+                    (r"input\s+(the\s+)?code", "Input verification code"),
+                    (r"provide\s+(the\s+)?code", "Provide the code"),
+                    
+                    # Code sent confirmations
+                    (r"verification\s+code\s+(has\s+been\s+)?sent", "✅ Verification code sent"),
+                    (r"code\s+(has\s+been\s+)?sent", "✅ Code sent successfully"),
+                    (r"we'?ve?\s+sent\s+(a\s+)?code", "✅ Code sent to you"),
+                    (r"sent\s+(you\s+)?a\s+code", "✅ Code delivered"),
+                    (r"code\s+sent\s+to", "✅ Code sent to device"),
+                    
+                    # Check device instructions
+                    (r"check\s+your\s+phone", "✅ Check your phone"),
+                    (r"check\s+your\s+(mobile\s+)?device", "✅ Check your device"),
+                    (r"check\s+your\s+email", "✅ Check your email"),
+                    (r"check\s+your\s+(text\s+)?messages", "✅ Check your messages"),
+                    (r"look\s+for\s+(a\s+)?code", "✅ Look for code"),
+                    
+                    # Authentication requests
+                    (r"authentication\s+code", "Enter authentication code"),
+                    (r"security\s+code", "Enter security code"),
+                    (r"confirm\s+(your\s+)?identity", "Confirm your identity"),
+                    (r"verify\s+(your\s+)?identity", "Verify identity"),
+                    (r"additional\s+verification", "Additional verification required"),
+                    
+                    # OTP specific
+                    (r"one[\s-]?time\s+password", "OTP required"),
+                    (r"otp\s+code", "OTP code required"),
+                    (r"enter\s+otp", "Enter OTP"),
+                    
+                    # SMS/Email references
+                    (r"sms\s+(code|message)", "✅ SMS code sent"),
+                    (r"text\s+message\s+code", "✅ Text message sent"),
+                    (r"email\s+(with\s+)?code", "✅ Email code sent"),
+                    
+                    # Challenge completion
+                    (r"complete\s+(the\s+)?verification", "Complete verification"),
+                    (r"finish\s+(the\s+)?authentication", "Finish authentication"),
+                    (r"continue\s+(with\s+)?verification", "Continue verification"),
+                ]
+                
+                for pattern, message in success_patterns:
+                    if re.search(pattern, text_content, re.IGNORECASE):
+                        return True, 'OTP_SUCCESS', f"✅ {message}"
+                
+                # ========== PRIORITY 4: CHECK FOR INPUT FIELDS (OTP SUCCESS) ==========
                 input_fields = soup.find_all('input', {'type': ['text', 'tel', 'number']})
                 
                 for field in input_fields:
+                    # Check if field is visible
+                    field_style = field.get('style', '')
+                    if 'display:none' in field_style.replace(' ', '') or 'display: none' in field_style:
+                        continue
+                    
+                    # Check parent visibility
+                    parent = field.parent
+                    is_visible = True
+                    while parent and parent.name != 'body':
+                        parent_style = parent.get('style', '')
+                        if 'display:none' in parent_style.replace(' ', '') or 'display: none' in parent_style:
+                            is_visible = False
+                            break
+                        parent = parent.parent
+                    
+                    if not is_visible:
+                        continue
+                    
                     field_attrs = ' '.join([
                         field.get('name', ''),
                         field.get('id', ''),
@@ -241,28 +314,48 @@ class CardChecker:
                     ]).lower()
                     
                     otp_indicators = ['otp', 'code', 'verification', 'verify', 'secure', 'auth', 
-                                     'text_input', 'text-input', 'challenge', 'pin']
+                                     'text_input', 'text-input', 'challenge', 'pin', 'password']
                     
                     if any(indicator in field_attrs for indicator in otp_indicators):
                         return True, 'OTP_SUCCESS', "✅ OTP input field detected"
-            
-            # ========== CHECK FOR VERIFY BUTTONS (OTP SUCCESS) ==========
-            verify_buttons = soup.find_all(['button', 'input'], {'type': ['submit', 'button']})
-            for btn in verify_buttons:
-                btn_text = ' '.join([
-                    btn.get_text(),
-                    btn.get('value', ''),
-                    btn.get('id', ''),
-                    btn.get('name', '')
-                ]).lower()
                 
-                if any(word in btn_text for word in ['verify', 'submit', 'confirm', 'continue', 'next']):
-                    if not any(word in text_content for word in ['sorry', 'error', 'failed']):
-                        return True, 'OTP_SUCCESS', "✅ Verification form detected"
+                # ========== PRIORITY 5: CHECK FOR VERIFY BUTTONS (OTP SUCCESS) ==========
+                verify_buttons = soup.find_all(['button', 'input'], {'type': ['submit', 'button']})
+                for btn in verify_buttons:
+                    # Check button visibility
+                    btn_style = btn.get('style', '')
+                    if 'display:none' in btn_style.replace(' ', '') or 'display: none' in btn_style:
+                        continue
+                    
+                    btn_text = ' '.join([
+                        btn.get_text(),
+                        btn.get('value', ''),
+                        btn.get('id', ''),
+                        btn.get('name', '')
+                    ]).lower()
+                    
+                    if any(word in btn_text for word in ['verify', 'submit', 'confirm', 'continue', 'next']):
+                        # Make sure it's in verify form, not error form
+                        parent = btn.parent
+                        in_error_form = False
+                        while parent and parent.name != 'body':
+                            if parent.name == 'form':
+                                form_id = parent.get('id', '').lower()
+                                if 'error' in form_id:
+                                    in_error_form = True
+                                    break
+                            parent = parent.parent
+                        
+                        if not in_error_form:
+                            return True, 'OTP_SUCCESS', "✅ Verification form detected"
             
-            # ========== AMBIGUOUS RESPONSES ==========
+            # ========== PRIORITY 6: AMBIGUOUS RESPONSES ==========
             if 'loading' in text_content or 'please wait' in text_content:
                 return None, 'UNCLEAR', "⏳ Loading response"
+            
+            # If we reach here with error keywords, it's likely a failure
+            if has_error_keyword:
+                return False, 'OTP_FAILED', "❌ Error detected in response"
             
             return None, 'UNCLEAR', "❓ Response unclear"
             
