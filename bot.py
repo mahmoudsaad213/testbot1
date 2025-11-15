@@ -850,6 +850,7 @@ async def send_result(bot_app, card, status_type, message, debug_info, user_id):
         # Get BIN info for successful cards
         bin_info = get_bin_info(card.split('|')[0])
         
+        # Only send message for full SUCCESS (not OTP_FAILED)
         if status_type == 'SUCCESS':
             mode_emoji = "🔍" if stats['check_mode'] == 'advanced' else "⚡"
             
@@ -875,29 +876,8 @@ async def send_result(bot_app, card, status_type, message, debug_info, user_id):
             )
         
         elif status_type == 'OTP_FAILED':
-            # NEW: Handle OTP Failed cards
-            mode_emoji = "🔍"
-            
-            text = (
-                "╔════════════════════════╗\n"
-                f"⚠️ **3DS PASSED - OTP ISSUE** {mode_emoji}\n"
-                "╚════════════════════════╝\n\n"
-                f"💳 `{card}`\n\n"
-                f"🏦 **Bank:** {bin_info['bank']}\n"
-                f"🌍 **Country:** {bin_info['emoji']} {bin_info['country']}\n"
-                f"💎 **Type:** {bin_info['type']} {bin_info['brand']}\n"
-                f"🔢 **BIN:** `{bin_info['bin']}`\n\n"
-                f"⚠️ **Status:** {message}\n"
-                f"📊 **Card:** #{card_number}\n"
-                "╚════════════════════════╝"
-            )
+            # Don't send message, just store the card
             stats['otp_failed_cards'].append(f"{card} | {bin_info['bank']} | {message}")
-            
-            await bot_app.bot.send_message(
-                chat_id=stats['chat_id'],
-                text=text,
-                parse_mode='Markdown'
-            )
             
     except Exception as e:
         print(f"[!] Error: {e}")
@@ -1126,19 +1106,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     stats['dashboard_message_id'] = dashboard_msg.message_id
     
-    mode_text = "🔍 Advanced (with OTP check)" if stats['check_mode'] == 'advanced' else "⚡ Basic (3DS only)"
-    
-    await update.message.reply_text(
-        f"╔════════════════════════╗\n"
-        f"✅ **CHECK STARTED!** ✅\n"
-        f"╚════════════════════════╝\n\n"
-        f"📊 **Total Cards:** {len(cards)}\n"
-        f"🔄 **Mode:** {mode_text}\n"
-        f"⏳ **Status:** Processing...\n\n"
-        f"💡 Watch the live dashboard above!",
-        parse_mode='Markdown'
-    )
-    
     asyncio.create_task(process_cards(cards, context.application, user_id))
 
 async def process_cards(cards, bot_app, user_id):
@@ -1169,45 +1136,8 @@ async def process_cards(cards, bot_app, user_id):
     stats['last_response'] = 'Completed ✅'
     await update_dashboard(bot_app, user_id)
     
-    mode_text = "🔍 Advanced" if stats['check_mode'] == 'advanced' else "⚡ Basic"
-    
-    summary_text = (
-        "╔════════════════════════╗\n"
-        "🎉 **CHECK COMPLETED!** 🎉\n"
-        "╚════════════════════════╝\n\n"
-        f"📊 **Final Statistics:**\n\n"
-        f"🔥 Total Checked: **{stats['total']}**\n"
-        f"✅ 3DS Success: **{stats['success_3ds']}**\n"
-        f"⚠️ OTP Failed: **{stats['otp_failed']}**\n"
-        f"❌ Failed: **{stats['failed']}**\n"
-        f"🚫 Errors: **{stats['errors']}**\n\n"
-        f"🔧 Mode: **{mode_text}**\n\n"
-        "📁 **Sending result files...**"
-    )
-    
-    await bot_app.bot.send_message(
-        chat_id=stats['chat_id'],
-        text=summary_text,
-        parse_mode='Markdown'
-    )
-    
+    # Send final files without extra messages
     await send_final_files(bot_app, user_id)
-    
-    final_text = (
-        "╔════════════════════════╗\n"
-        "✨ **ALL DONE!** ✨\n"
-        "╚════════════════════════╝\n\n"
-        "✅ All files have been sent\n"
-        "📊 Thank you for using the bot!\n\n"
-        "⚡️ Powered by 3D Secure Gateway\n"
-        "🔒 Secure • Fast • Reliable"
-    )
-    
-    await bot_app.bot.send_message(
-        chat_id=stats['chat_id'],
-        text=final_text,
-        parse_mode='Markdown'
-    )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
