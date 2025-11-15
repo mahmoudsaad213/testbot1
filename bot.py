@@ -40,8 +40,9 @@ def get_user_stats(user_id):
     return user_sessions[user_id]
 
 def reset_user_stats(user_id):
-    """Reset user statistics"""
+    """Reset user statistics but keep check_mode"""
     if user_id in user_sessions:
+        current_mode = user_sessions[user_id].get('check_mode', 'basic')
         user_sessions[user_id].update({
             'total': 0,
             'checking': 0,
@@ -56,6 +57,7 @@ def reset_user_stats(user_id):
             'cards_checked': 0,
             'success_cards': [],
             'otp_failed_cards': [],
+            'check_mode': current_mode  # Keep the mode
         })
 
 # ========== BIN LOOKUP ==========
@@ -1078,7 +1080,10 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_content = await file.download_as_bytearray()
     cards = [c.strip() for c in file_content.decode('utf-8').strip().split('\n') if c.strip()]
     
-    # Reset stats for user
+    # IMPORTANT: Save current check_mode before resetting
+    current_check_mode = stats.get('check_mode', 'basic')
+    
+    # Reset stats for user but keep check_mode
     stats.update({
         'total': len(cards),
         'checking': 0,
@@ -1093,7 +1098,8 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'otp_failed_cards': [],
         'start_time': datetime.now(),
         'is_running': True,
-        'chat_id': update.effective_chat.id
+        'chat_id': update.effective_chat.id,
+        'check_mode': current_check_mode  # Keep the selected mode
     })
     
     dashboard_msg = await update.message.reply_text(
