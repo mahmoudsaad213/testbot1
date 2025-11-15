@@ -366,7 +366,7 @@ class CardChecker:
             
         except Exception as e:
             return None, 'UNCLEAR', f"⚠️ Analysis error: {str(e)[:30]}"
-                
+            [
                 # Card issues
                 (r"card\s+(was\s+)?declined", "Card declined"),
                 (r"card\s+not\s+supported", "Card not supported"),
